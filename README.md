@@ -134,7 +134,7 @@ copied in under its MIT license.
 
 ## Author
 
-James Maxwell ([@jdmax](https://github.com/jdmax))
+[J. Maxwell](https://orcid.org/0000-0003-2710-4646) ([@jdmax](https://github.com/jdmax))
 
 ## License
 
