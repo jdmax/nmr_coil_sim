@@ -29,6 +29,7 @@ HEAD = """<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="Coil Raster Explorer: raster sampling, deuteron signal bias and tunability of cw-NMR coils on polarized target cells (preset coils, single file).">
+<meta name="author" content="J. Maxwell">
 <style>
 :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
 html, body { margin: 0; }
@@ -42,7 +43,9 @@ img { max-width: 100%; }
 FOOT_LINKS = """  <footer class="notes" style="font-size:0.8rem">
     Single-file version with the preset coils. To design and compute your own coils in the browser, use the
     <a href="./" style="color:var(--copper)">full explorer</a>. Source and tests:
-    <a href="https://github.com/jdmax/nmr_coil_sim" style="color:var(--copper)">github.com/jdmax/nmr_coil_sim</a>.
+    <a href="https://github.com/jdmax/nmr_coil_sim" style="color:var(--copper)">github.com/jdmax/nmr_coil_sim</a>.<br>
+    By <a href="https://orcid.org/0000-0003-2710-4646" style="color:var(--copper)">J. Maxwell</a>. © 2026 J. Maxwell,
+    <a href="https://github.com/jdmax/nmr_coil_sim/blob/main/LICENSE" style="color:var(--copper)">MIT license</a>.
   </footer>
 </div>
 
