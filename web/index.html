@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NMR Coil Raster Explorer</title>
+<meta name="description" content="Simulate cw-NMR coils on polarized target cells: raster sampling, deuteron signal bias, and tunability, computed in the browser with Pyodide.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="style.css">
+<style>html, body { margin: 0; } body { font-size: 14px; } [hidden] { display: none !important; }</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header>
+    <h1>NMR Coil Raster Explorer</h1>
+    <p>How much of a cw-NMR signal comes from the material the beam actually hits, what that does to deuteron
+      polarization measurements, and whether a coil can be tuned. Drag the raster on the cross-section map; every number
+      recomputes from B<sub>T</sub>² field maps (CLAS Note Eq. 3, with B₀ along the beam). New coils are computed in your
+      browser with the same Python code as the
+      <a href="https://github.com/jdmax/nmr_coil_sim">nmr_coil_sim</a> repository.</p>
+  </header>
+
+  <div class="controls" role="group" aria-label="Simulation settings">
+    <div class="ctl">
+      <span class="eyebrow">Target cell</span>
+      <div class="seg" id="cellSeg"></div>
+    </div>
+    <div class="ctl" style="flex: 1 1 260px;">
+      <label class="eyebrow" for="coilSel">Coil</label>
+      <select id="coilSel"></select>
+    </div>
+    <div class="ctl">
+      <label class="eyebrow" for="rasterR">Raster diameter <span class="mono" id="rasterVal"></span></label>
+      <input type="range" id="rasterR" min="4" max="15" step="0.5" value="12">
+    </div>
+    <div class="ctl">
+      <span class="eyebrow">Raster centre (mm)</span>
+      <div class="row">
+        <label class="hint" for="offX">x</label><input type="number" id="offX" step="0.1" value="0">
+        <label class="hint" for="offY">y</label><input type="number" id="offY" step="0.1" value="0">
+      </div>
+    </div>
+    <div class="ctl">
+      <span class="eyebrow">Presets</span>
+      <div class="row">
+        <button class="btn" id="btnCentre" type="button">Centre</button>
+        <button class="btn" id="btnFig8" type="button">Fig. 8: 1 mm away from coil</button>
+      </div>
+    </div>
+    <p class="coil-note" id="coilNote"></p>
+  </div>
+
+
+  <section class="panel" aria-labelledby="desHead">
+    <div class="card-head">
+      <h2 id="desHead">Design a coil</h2>
+      <span class="status" id="pyStatus" role="status"><i class="dot busy" id="pyDot"></i><span id="pyText">Loading Python (Pyodide)…</span></span>
+    </div>
+    <p>Pick a geometry, set its dimensions and compute it here in your browser. The result joins the comparison
+      for its cell size. Start from any coil above with <em>Load selected coil</em>. Computed coils are kept in this
+      browser only.</p>
+    <div class="designer">
+      <div class="ctl"><label class="eyebrow" for="dType">Geometry</label><select id="dType"></select></div>
+      <div class="ctl" style="grid-column: span 2;"><label class="eyebrow" for="dName">Name</label><input type="text" id="dName"></div>
+      <div class="ctl"><label class="eyebrow" for="dCellD">Cell diameter (mm)</label><input type="number" id="dCellD" step="0.5" min="4"></div>
+      <div class="ctl"><label class="eyebrow" for="dCellL">Cell length (mm)</label><input type="number" id="dCellL" step="1" min="5"></div>
+    </div>
+    <div class="subhead">Dimensions</div>
+    <div class="designer" id="dParams"></div>
+    <div class="designer-actions">
+      <button class="btn primary" id="btnCompute" type="button" disabled>Compute and add</button>
+      <button class="btn" id="btnLoadSel" type="button">Load selected coil</button>
+      <button class="btn" id="btnRemove" type="button" hidden>Remove selected coil</button>
+      <span class="status" id="computeMsg" aria-live="polite"></span>
+    </div>
+  </section>
+
+  <div class="stage">
+    <div class="card">
+      <div class="card-head">
+        <h2>B<sub>T</sub>² on the cell surface</h2>
+        <span class="hint">Drag to rotate · beam along z</span>
+      </div>
+      <div class="canvas-box"><canvas id="view3d" tabindex="0" aria-label="3D view of the coil and the transverse field on the target cell surface"></canvas></div>
+      <div class="cbar" aria-hidden="true">
+        <span>B<sub>T</sub>² / cell mean</span>
+        <div style="flex:1; display:flex; flex-direction:column; gap:2px;">
+          <div class="ramp" id="ramp1"></div>
+          <div class="ticks"><span>0</span><span>1</span><span>2</span><span>≥3</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>B<sub>T</sub>² averaged across all z</h2>
+        <span class="hint">Drag the white circle · arrow keys nudge 0.1 mm</span>
+      </div>
+      <div class="canvas-box"><canvas id="map" tabindex="0" aria-label="Cross-section map with draggable beam raster"></canvas></div>
+      <div class="cbar" aria-hidden="true">
+        <span>B<sub>T</sub>² / cell mean</span>
+        <div style="flex:1; display:flex; flex-direction:column; gap:2px;">
+          <div class="ramp" id="ramp2"></div>
+          <div class="ticks"><span>0</span><span>1</span><span>2</span><span>≥3</span></div>
+        </div>
+      </div>
+      <div class="readout">
+        <div>
+          <div class="eyebrow">Signal from raster</div>
+          <div class="big" id="fracBig">–</div>
+        </div>
+        <dl>
+          <dt>Uniform-coil ceiling</dt><dd id="ceil">–</dd>
+          <dt>Shell weight (1 − f)</dt><dd id="shell">–</dd>
+          <dt>Worst 1 mm shift</dt><dd id="sens">–</dd>
+          <dt>Raster vs. cell wall</dt><dd id="clip">–</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+
+  <section class="panel" aria-labelledby="dHead">
+    <h2 id="dHead">Deuteron signal for this coil and raster</h2>
+    <p>Set the polarization of the rastered core and of the unrastered shell. The coil sees their two Pake doublets
+      weighted by its raster fraction. The area method returns the weighted mean; a single-r peak fit
+      (the DeuteronPeakFit lineshape) does not, because peak heights are nonlinear in P.</p>
+    <div class="dgrid">
+      <div class="dctl">
+        <div class="ctl">
+          <label class="eyebrow" for="pIn">Rastered core P <span class="mono" id="pInVal"></span></label>
+          <input type="range" id="pIn" min="-0.9" max="0.9" step="0.01" value="0.30">
+        </div>
+        <div class="ctl">
+          <label class="eyebrow" for="pOut">Unrastered shell P <span class="mono" id="pOutVal"></span></label>
+          <input type="range" id="pOut" min="-0.9" max="0.9" step="0.01" value="0.45">
+        </div>
+        <div class="dread" aria-live="polite">
+          <span class="hdr">Polarization</span><span class="hdr" style="text-align:right">value</span><span class="hdr" style="text-align:right">− core</span>
+          <span class="k">Coil weight on core (f)</span><span class="v" id="dF">–</span><span class="e"></span>
+          <span class="k">Material in the beam</span><span class="v" id="dTrue">–</span><span class="e">0</span>
+          <hr>
+          <span class="k strong">Area method</span><span class="v strong" id="dArea">–</span><span class="e" id="dAreaE">–</span>
+          <span class="k strong">Peak fit</span><span class="v strong" id="dFit">–</span><span class="e" id="dFitE">–</span>
+          <span class="k">Fit − area</span><span class="v" id="dDiff">–</span><span class="e"></span>
+          <hr>
+          <span class="k">Fit residual (rms / peak)</span><span class="v" id="dRes">–</span><span class="e"></span>
+        </div>
+      </div>
+      <div style="min-width:0; display:flex; flex-direction:column; gap:8px;">
+        <div class="canvas-box wide"><canvas id="dsig" aria-label="Simulated deuteron NMR signal with its two parts and the peak fit"></canvas></div>
+        <div class="legend-line" style="margin-top:0">
+          <span style="color:var(--ink)"><i class="sw" style="background:var(--ink)"></i>signal seen by coil</span>
+          <span style="color:var(--copper)"><i class="sw dash"></i><span style="color:var(--muted)">rastered core × f</span></span>
+          <span style="color:var(--shell)"><i class="sw dash"></i><span style="color:var(--muted)">shell × (1 − f)</span></span>
+          <span style="color:var(--fitc)"><i class="sw dot"></i><span style="color:var(--muted)">single-r peak fit</span></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Every coil at this raster</h2>
+    <p>Same cell, raster size and position for every coil computed for this cell size. The tick is the ceiling for a perfectly
+      uniform coil: the raster's share of the cell area. "Worst 1 mm shift" is the largest change in the fraction when
+      the raster moves 1 mm in any direction. The last two columns are the deuteron polarization each coil would report
+      for the core and shell values set above.</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Coil</th><th>Fraction of signal from raster</th><th class="num">f</th><th class="num">Worst 1 mm shift</th><th class="num">Deuteron P, area</th><th class="num">Deuteron P, peak fit</th></tr></thead>
+        <tbody id="cmpBody"></tbody>
+      </table>
+    </div>
+    <div class="legend-line">
+      <span><i class="sw"></i>fraction from raster</span>
+      <span><i class="sw tick"></i>uniform-coil ceiling</span>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Can it be tuned?</h2>
+    <p>Inductance from a partial-inductance (Neumann) calculation of each wire model, and the series capacitance
+      that resonates it. As references: the RGC proton loop model needs about 12 pF at 212.6 MHz, and the RGC
+      cold deuteron board spanned 40–82 pF (36 pF fixed plus two 2–23 pF varactors).</p>
+    <div class="scroll">
+      <table>
+        <thead><tr>
+          <th>Coil</th><th class="num">L (nH)</th>
+          <th class="num">C at <span id="fp"></span> MHz</th><th>Proton</th>
+          <th class="num">C at <span id="fd"></span> MHz</th><th>Deuteron</th>
+          <th class="num">η (%)</th><th class="num">Wire run / λ</th>
+        </tr></thead>
+        <tbody id="tuneBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="notes">
+    <h3>What the model does and doesn't include</h3>
+    <ul>
+      <li>Quasi-static Biot–Savart fields of thin-wire models, with the currents imposed. Birdcages sit in their ideal
+        uniform mode; Alderman–Grant strips share current evenly across 5 filaments. No eddy currents in the bath,
+        microwave horn or frame.</li>
+      <li>Preset coils are computed offline at full resolution. Coils you add are computed in the browser on coarser
+        grids (0.25 mm map pixels, 11 slices along z); raster fractions agree with full resolution to within 0.005.</li>
+      <li>The RGC coil is a 3-turn flat spiral (r 7–13 mm) in a plane 16 mm above the cell axis. Those dimensions were
+        fitted to the two fractions quoted for Fig. 8 (0.56 centred, 0.43 at 1 mm away); replace them with the as-built
+        values. For the 20 mm cell the plane moves out by the extra 2.5 mm of cell radius.</li>
+      <li>η is the transverse filling factor ∫<sub>cell</sub> B<sub>T</sub>² dV / (μ₀L); signal size scales as η·Q.</li>
+      <li>Birdcage L is the energy-equivalent value with the largest rung current set to 1 A. Its capacitance column is
+        the value needed in each rung of a low-pass birdcage, from equating stored magnetic and electric energy in the
+        uniform mode (C<sub>rung</sub> = (N/2)/(ω²L)). The Q-meter then sees it through a matching network.</li>
+      <li>Tuning flags at 212.6 MHz: 6 pF or more is in the range of the RGC proton loop; 3–6 pF is tight; under 3 pF is
+        comparable to stray and cable capacitance, so split the coil with series capacitors or use fewer turns. A wire run
+        longer than λ/10 carries visibly non-uniform current.</li>
+      <li>L does not include the leads to the tank circuit. Leads add inductance, so treat these as lower bounds.</li>
+      <li>Deuteron signals use the absorption-only Dulya lineshape from DeuteronPeakFit with A = 0.0782, ω<sub>Q</sub> = 27.2 kHz,
+        ω<sub>L</sub> = 32.698 MHz, from a fit to its RGC example event. The two zones share these parameters and differ only in r.
+        The peak fit here frees G and r; freeing A, ω<sub>Q</sub>, ω<sub>L</sub>, η and ξ as well changes P by less than 10⁻⁴ in
+        checks against the full fit.</li>
+      <li>The area method assumes a calibration constant taken on uniformly polarized material. RGC deuteron calibrations came
+        from peak fits on golden events, so if a golden event was itself non-uniform, its peak-fit bias passes into every
+        area-based value that uses that constant.</li>
+    </ul>
+  </section>
+  <footer class="site">Source, offline scripts and validation tests:
+    <a href="https://github.com/jdmax/nmr_coil_sim">github.com/jdmax/nmr_coil_sim</a>.
+    Deuteron lineshape from <a href="https://github.com/jdmax/DeuteronPeakFit">DeuteronPeakFit</a>.</footer>
+
+</div>
+
+
+<script src="app.js" defer></script>
+</body>
+</html>
