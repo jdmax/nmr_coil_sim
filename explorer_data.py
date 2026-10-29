@@ -108,6 +108,10 @@ def presets(diam: float, length: float = 50.0) -> list[dict]:
         dict(key="pair", group="Cheap upgrade", type="loop", name="Loop pair, above + below",
              radius=10.0, height=h, pair=1,
              note="Two single loops, above and below the cell, in series so their fields add."),
+        dict(key="rect_in", group="Embedded", type="rect_loop", name="Rectangle 6 × 20 mm, in cell",
+             width=20.0, height_dim=6.0, standoff=0.0,
+             note="Flat single-turn rectangle in the cell's mid-plane (y = 0), 20 mm along the beam "
+                  "and 6 mm across, embedded in the material at the center of the cell."),
         dict(key="sad_c", group="Volume coils", type="saddle", name="Saddle 120°, on cell",
              radius=on_cell, length=length, arc_deg=120.0, turns=1,
              note=f"Single-turn saddle, 120° windows, on the cell wall (r {on_cell:.1f} mm)."),

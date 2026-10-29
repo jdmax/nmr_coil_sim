@@ -62,8 +62,9 @@
       <span class="status" id="pyStatus" role="status"><i class="dot busy" id="pyDot"></i><span id="pyText">Loading Python (Pyodide)…</span></span>
     </div>
     <p>Pick a geometry, set its dimensions and compute it here in your browser. The result joins the comparison
-      for its cell size. Start from any coil above with <em>Load selected coil</em>. Computed coils are kept in this
-      browser only.</p>
+      for its cell size. Start from any coil above with <em>Load selected coil</em>. Computed coils are saved in this
+      browser only: other visitors don't see them, and they don't carry over to another browser or device. Remove
+      one with × in the tuning table.</p>
     <div class="designer">
       <div class="ctl"><label class="eyebrow" for="dType">Geometry</label><select id="dType"></select></div>
       <div class="ctl" style="grid-column: span 2;"><label class="eyebrow" for="dName">Name</label><input type="text" id="dName"></div>
@@ -76,6 +77,7 @@
       <button class="btn primary" id="btnCompute" type="button" disabled>Compute and add</button>
       <button class="btn" id="btnLoadSel" type="button">Load selected coil</button>
       <button class="btn" id="btnRemove" type="button" hidden>Remove selected coil</button>
+      <button class="btn" id="btnRemoveAll" type="button" hidden>Remove all my coils</button>
       <span class="status" id="computeMsg" aria-live="polite"></span>
     </div>
   </section>

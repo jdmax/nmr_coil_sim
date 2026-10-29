@@ -150,6 +150,11 @@ tbody tr:hover td { background: color-mix(in srgb, var(--copper) 5%, transparent
 tbody tr.sel td { background: color-mix(in srgb, var(--copper) 11%, transparent); }
 tbody tr.sel td:first-child { box-shadow: inset 3px 0 0 var(--copper); }
 .group { color: var(--muted); font-size: 0.76rem; display: block; }
+.rm {
+  font: 600 0.95rem/1 var(--f-body); color: var(--muted); background: transparent;
+  border: 1px solid transparent; border-radius: 6px; padding: 1px 6px; margin-left: 4px; cursor: pointer;
+}
+.rm:hover { color: var(--bad); border-color: var(--bad); }
 .barcell { min-width: 160px; width: 30%; }
 .bar { position: relative; height: 12px; background: var(--track); border-radius: 3px; }
 .bar .fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--copper); border-radius: 3px; }

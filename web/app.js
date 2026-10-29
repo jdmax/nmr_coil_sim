@@ -226,7 +226,9 @@ function build3d() {
   let rmax = Math.max(R, L / 2);
   for (let k = 0; k < cur.length; k++) {
     const a = [seg[k * 6], seg[k * 6 + 1], seg[k * 6 + 2]], b = [seg[k * 6 + 3], seg[k * 6 + 4], seg[k * 6 + 5]];
-    lines.push({ a, b, w: 1 + 1.8 * Math.min(1, cur[k]) });
+    // wires inside the cell are hidden by its surface; draw3d shows them dashed on top
+    const inside = [a, b].every(p => Math.hypot(p[0], p[1]) < R && Math.abs(p[2]) <= L / 2);
+    lines.push({ a, b, w: 1 + 1.8 * Math.min(1, cur[k]), inside });
     rmax = Math.max(rmax, Math.hypot(...a), Math.hypot(...b));
   }
   geo3 = { quads, lines, rmax };
@@ -252,7 +254,7 @@ function draw3d() {
   }
   for (const l of geo3.lines) {
     const a = rot(l.a), b = rot(l.b);
-    items.push({ t: 1, d: (a[2] + b[2]) / 2 + 0.3, a: prj(a), b: prj(b), w: l.w });
+    items.push({ t: 1, d: l.inside ? Infinity : (a[2] + b[2]) / 2 + 0.3, a: prj(a), b: prj(b), w: l.w, inside: l.inside });
   }
   // raster footprint on both end caps
   const C = cell(), rr = st.rd / 2;
@@ -269,8 +271,10 @@ function draw3d() {
       ctx.fillStyle = c; ctx.strokeStyle = c; ctx.lineWidth = 0.6;
       ctx.beginPath(); ctx.moveTo(...it.pts[0]); for (let k = 1; k < 4; k++) ctx.lineTo(...it.pts[k]); ctx.closePath(); ctx.fill(); ctx.stroke();
     } else if (it.t === 1) {
-      ctx.strokeStyle = copper; ctx.lineWidth = it.w; ctx.lineCap = "round";
+      ctx.strokeStyle = copper; ctx.lineWidth = it.w; ctx.lineCap = it.inside ? "butt" : "round";
+      ctx.setLineDash(it.inside ? [4, 3] : []);
       ctx.beginPath(); ctx.moveTo(...it.a); ctx.lineTo(...it.b); ctx.stroke();
+      ctx.setLineDash([]);
     } else {
       ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1.6;
       ctx.beginPath(); ctx.moveTo(...it.a); ctx.lineTo(...it.b); ctx.stroke();
@@ -319,13 +323,15 @@ function buildTables() {
   const tb = document.getElementById("tuneBody"); tb.innerHTML = "";
   cell().coils.forEach((c, i) => {
     const tr = document.createElement("tr"); tr.dataset.i = i;
-    tr.innerHTML = `<td>${c.name}<span class="group">${c.group}</span></td>
+    const rm = c.group === "Your coils" ? ` <button class="rm" type="button" title="Remove ${c.name}" aria-label="Remove ${c.name}">×</button>` : "";
+    tr.innerHTML = `<td>${c.name}${rm}<span class="group">${c.group}</span></td>
       <td class="num">${c.L_nH.toFixed(0)}</td>
       <td class="num">${c.rungs ? c.C_rung_p_pF.toFixed(1) + `<span class="group">each of ${c.rungs} rungs</span>` : c.C_p_pF.toFixed(1)}</td><td>${chipP(c)}</td>
       <td class="num">${c.rungs ? c.C_rung_d_pF.toFixed(0) + `<span class="group">each of ${c.rungs} rungs</span>` : c.C_d_pF.toFixed(0)}</td><td>${chipD(c)}</td>
       <td class="num">${(100 * c.eta).toFixed(1)}</td>
       <td class="num">${c.rungs ? "–" : c.len_lambda.toFixed(2)}</td>`;
     tr.addEventListener("click", () => selectCoil(i));
+    if (rm) tr.querySelector(".rm").addEventListener("click", e => { e.stopPropagation(); removeCoils([c]); });
     tb.appendChild(tr);
   });
   const cb = document.getElementById("cmpBody"); cb.innerHTML = "";
@@ -507,7 +513,7 @@ const dType = document.getElementById("dType"), dName = document.getElementById(
 const dCellD = document.getElementById("dCellD"), dCellL = document.getElementById("dCellL");
 const dParams = document.getElementById("dParams");
 const btnCompute = document.getElementById("btnCompute"), btnLoadSel = document.getElementById("btnLoadSel");
-const btnRemove = document.getElementById("btnRemove"), computeMsg = document.getElementById("computeMsg");
+const btnRemove = document.getElementById("btnRemove"), btnRemoveAll = document.getElementById("btnRemoveAll"), computeMsg = document.getElementById("computeMsg");
 const pyDot = document.getElementById("pyDot"), pyText = document.getElementById("pyText");
 let pyReady = false, busy = false, jobId = 0;
 const pending = new Map();
@@ -553,6 +559,7 @@ function loadFromCoil(c) {
 btnLoadSel.addEventListener("click", () => loadFromCoil(coil()));
 function syncDesignerButtons() {
   btnRemove.hidden = !coil() || coil().group !== "Your coils";
+  btnRemoveAll.hidden = !userCoils().length;
   btnCompute.disabled = !pyReady || busy;
 }
 
@@ -636,12 +643,26 @@ btnCompute.addEventListener("click", async () => {
     busy = false; pyDot.className = pyReady ? "dot ok" : "dot err"; syncDesignerButtons();
   }
 });
+function userCoils() { return DATA.cells.flatMap(c => c.coils.filter(e => e.group === "Your coils")); }
+// Drop the given user coils (and any cell left empty), keeping the current selection where it survives.
+function removeCoils(gone) {
+  if (!gone.length) return;
+  const curCell = cell(), curCoil = coil();
+  for (const c of DATA.cells) c.coils = c.coils.filter(e => !gone.includes(e));
+  DATA.cells = DATA.cells.filter(c => c.coils.length);
+  saveUser();
+  st.cell = Math.max(0, DATA.cells.indexOf(curCell));
+  st.coil = Math.max(0, cell().coils.indexOf(curCoil));
+  if (cell() !== curCell) { st.ox = 0; st.oy = 0; st.rd = Math.min(st.rd, cell().diam); }
+  buildControls(); build3d(); updateAll();
+  computeMsg.textContent = gone.length === 1 ? `Removed ${gone[0].name}.` : `Removed ${gone.length} coils.`;
+}
 btnRemove.addEventListener("click", () => {
-  const c = coil(); if (!c || c.group !== "Your coils") return;
-  const list = cell().coils; list.splice(st.coil, 1); saveUser();
-  if (!list.length) { DATA.cells.splice(st.cell, 1); st.cell = 0; }
-  st.coil = 0; buildControls(); build3d(); updateAll();
-  computeMsg.textContent = `Removed ${c.name}.`;
+  const c = coil(); if (c && c.group === "Your coils") removeCoils([c]);
+});
+btnRemoveAll.addEventListener("click", () => {
+  const all = userCoils();
+  if (all.length && confirm(`Remove all ${all.length} of your coils from this browser?`)) removeCoils(all);
 });
 
 loadUser();

@@ -586,7 +586,9 @@ function build3d() {
   let rmax = Math.max(R, L / 2);
   for (let k = 0; k < cur.length; k++) {
     const a = [seg[k * 6], seg[k * 6 + 1], seg[k * 6 + 2]], b = [seg[k * 6 + 3], seg[k * 6 + 4], seg[k * 6 + 5]];
-    lines.push({ a, b, w: 1 + 1.8 * Math.min(1, cur[k]) });
+    // wires inside the cell are hidden by its surface; draw3d shows them dashed on top
+    const inside = [a, b].every(p => Math.hypot(p[0], p[1]) < R && Math.abs(p[2]) <= L / 2);
+    lines.push({ a, b, w: 1 + 1.8 * Math.min(1, cur[k]), inside });
     rmax = Math.max(rmax, Math.hypot(...a), Math.hypot(...b));
   }
   geo3 = { quads, lines, rmax };
@@ -612,7 +614,7 @@ function draw3d() {
   }
   for (const l of geo3.lines) {
     const a = rot(l.a), b = rot(l.b);
-    items.push({ t: 1, d: (a[2] + b[2]) / 2 + 0.3, a: prj(a), b: prj(b), w: l.w });
+    items.push({ t: 1, d: l.inside ? Infinity : (a[2] + b[2]) / 2 + 0.3, a: prj(a), b: prj(b), w: l.w, inside: l.inside });
   }
   // raster footprint on both end caps
   const C = cell(), rr = st.rd / 2;
@@ -629,8 +631,10 @@ function draw3d() {
       ctx.fillStyle = c; ctx.strokeStyle = c; ctx.lineWidth = 0.6;
       ctx.beginPath(); ctx.moveTo(...it.pts[0]); for (let k = 1; k < 4; k++) ctx.lineTo(...it.pts[k]); ctx.closePath(); ctx.fill(); ctx.stroke();
     } else if (it.t === 1) {
-      ctx.strokeStyle = copper; ctx.lineWidth = it.w; ctx.lineCap = "round";
+      ctx.strokeStyle = copper; ctx.lineWidth = it.w; ctx.lineCap = it.inside ? "butt" : "round";
+      ctx.setLineDash(it.inside ? [4, 3] : []);
       ctx.beginPath(); ctx.moveTo(...it.a); ctx.lineTo(...it.b); ctx.stroke();
+      ctx.setLineDash([]);
     } else {
       ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1.6;
       ctx.beginPath(); ctx.moveTo(...it.a); ctx.lineTo(...it.b); ctx.stroke();
