@@ -28,7 +28,7 @@ a1.plot(freqs, c["shell_part"] * scale, color="#2a78d6", lw=1.6, ls="--",
 a1.plot(freqs, c["fit"] * scale, color="#1baf7a", lw=1.2, ls=":",
         label=f"single-r peak fit, P = {c['P_fit']:.3f}")
 a1.set_xlim(32.40, 33.00)
-a1.set_xlabel("frequency (MHz)"); a1.set_ylabel("absorption (normalised)")
+a1.set_xlabel("frequency (MHz)"); a1.set_ylabel("absorption (normalized)")
 a1.set_title(f"RGC coil: area gives P = {c['P_area']:.3f}, peak fit {c['P_fit']:.3f}, "
              f"raster is {P_IN:.2f}", fontsize=10)
 a1.legend(fontsize=8, frameon=False, loc="upper left")

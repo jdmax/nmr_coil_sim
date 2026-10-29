@@ -14,7 +14,7 @@ of turning it into a polarization:
                    fit to the weighted mean.
 
 Lineshape: absorption-only Dulya model as in jdmax/DeuteronPeakFit
-(deuteron_fit._fit_func), copied here (MIT licence) so this module runs without
+(deuteron_fit._fit_func), copied here (MIT license) so this module runs without
 lmfit. Where lmfit and deuteron_fit.py are importable, peak_fit_polarization(...,
 use_deuteronpeakfit=True) calls the original fit() with all seven parameters free.
 
@@ -124,7 +124,7 @@ def area_polarization(signal, freqs, ts):
 
 def _fit_G_r(signal, ts, P_lo=-0.97, P_hi=0.97):
     """Least-squares fit of G and r (other lineshape parameters fixed). G is linear,
-    so chi2(r) = |y|^2 - (s.y)^2/(s.s); minimise over r by grid + golden section."""
+    so chi2(r) = |y|^2 - (s.y)^2/(s.s); minimize over r by grid + golden section."""
     y = np.asarray(signal, float)
 
     def chi2(r):

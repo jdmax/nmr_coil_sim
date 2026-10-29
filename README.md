@@ -83,7 +83,7 @@ cs.plot_cell_surface(coil, cell)             # 3D surface map with the wires
 | Quantity | Meaning |
 |---|---|
 | Raster fraction f | CLAS Note Eq. 3: ∫raster B_T² dV / ∫cell B_T² dV |
-| Uniform-coil ceiling | The raster's share of the cell area, (R_b/R_t)² for a centred raster |
+| Uniform-coil ceiling | The raster's share of the cell area, (R_b/R_t)² for a centered raster |
 | Worst 1 mm shift | Largest change in f when the raster moves 1 mm in any direction |
 | η | Transverse filling factor ∫cell B_T² dV / (μ0 L); signal ∝ η·Q |
 | L, C | Inductance and the series capacitance that tunes it. For birdcages: capacitance per rung of a low-pass birdcage, C_rung = (N/2)/(ω²L) |
@@ -93,12 +93,12 @@ cs.plot_cell_surface(coil, cell)             # 3D surface map with the wires
 CLAS Note Fig. 8 shows a flat circular coil above the cell; the Fig. 6 photo shows
 a 3-turn pancake spiral. `cs.spiral(7, 13, 3, center=(0, 16, 0), normal=(0, 1, 0))`
 puts a spiral with r = 7–13 mm in a plane 16 mm above the axis. It reproduces the
-Note's fractions: 0.558 centred and 0.436 at 1 mm away, against 0.56 and 0.43 in the
+Note's fractions: 0.558 centered and 0.436 at 1 mm away, against 0.56 and 0.43 in the
 Note. These dimensions are a fit, not a measurement; replace them with the as-built
 values.
 
-Its modelled 257 nH needs 93 pF at 32.6 MHz, a little above the RGC cold board's
-40–82 pF range. The leads to the board, which are not modelled, account for the
+Its modeled 257 nH needs 93 pF at 32.6 MHz, a little above the RGC cold board's
+40–82 pF range. The leads to the board, which are not modeled, account for the
 difference.
 
 ## Deuteron signals with non-uniform polarization
@@ -106,7 +106,7 @@ difference.
 `deuteron_signals.compare(P_in, P_out, f)` gives the signal a coil with raster
 fraction f sees: f·shape(P_in) + (1−f)·shape(P_out), using the absorption-only
 Dulya lineshape from [DeuteronPeakFit](https://github.com/jdmax/DeuteronPeakFit),
-copied in under its MIT licence.
+copied in under its MIT license.
 
 - **Area method.** Area is exactly linear in P, so with a calibration constant taken
   on uniformly polarized material it returns the weighted mean.

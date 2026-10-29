@@ -101,7 +101,7 @@ coilSel.addEventListener("change", () => { st.coil = +coilSel.value; build3d(); 
 rasterR.addEventListener("input", () => { st.rd = +rasterR.value; updateAll(); });
 offX.addEventListener("change", () => { st.ox = +offX.value || 0; updateAll(); });
 offY.addEventListener("change", () => { st.oy = +offY.value || 0; updateAll(); });
-document.getElementById("btnCentre").addEventListener("click", () => { st.ox = 0; st.oy = 0; updateAll(); });
+document.getElementById("btnCenter").addEventListener("click", () => { st.ox = 0; st.oy = 0; updateAll(); });
 document.getElementById("btnFig8").addEventListener("click", () => { st.ox = 0; st.oy = -1; updateAll(); });
 
 /* ---------- 2D map ---------- */

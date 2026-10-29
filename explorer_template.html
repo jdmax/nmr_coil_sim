@@ -206,7 +206,7 @@ tbody tr.sel td:first-child { box-shadow: inset 3px 0 0 var(--copper); }
       <input type="range" id="rasterR" min="4" max="15" step="0.5" value="12">
     </div>
     <div class="ctl">
-      <span class="eyebrow">Raster centre (mm)</span>
+      <span class="eyebrow">Raster center (mm)</span>
       <div class="row">
         <label class="hint" for="offX">x</label><input type="number" id="offX" step="0.1" value="0">
         <label class="hint" for="offY">y</label><input type="number" id="offY" step="0.1" value="0">
@@ -215,7 +215,7 @@ tbody tr.sel td:first-child { box-shadow: inset 3px 0 0 var(--copper); }
     <div class="ctl">
       <span class="eyebrow">Presets</span>
       <div class="row">
-        <button class="btn" id="btnCentre" type="button">Centre</button>
+        <button class="btn" id="btnCenter" type="button">Center</button>
         <button class="btn" id="btnFig8" type="button">Fig. 8: 1 mm away from coil</button>
       </div>
     </div>
@@ -348,7 +348,7 @@ tbody tr.sel td:first-child { box-shadow: inset 3px 0 0 var(--copper); }
         uniform mode; Alderman–Grant strips share current evenly across 5 filaments. No eddy currents in the bath,
         microwave horn or frame.</li>
       <li>The RGC coil is a 3-turn flat spiral (r 7–13 mm) in a plane 16 mm above the cell axis. Those dimensions were
-        fitted to the two fractions quoted for Fig. 8 (0.56 centred, 0.43 at 1 mm away); replace them with the as-built
+        fitted to the two fractions quoted for Fig. 8 (0.56 centered, 0.43 at 1 mm away); replace them with the as-built
         values. For the 20 mm cell the plane moves out by the extra 2.5 mm of cell radius.</li>
       <li>η is the transverse filling factor ∫<sub>cell</sub> B<sub>T</sub>² dV / (μ₀L); signal size scales as η·Q.</li>
       <li>Birdcage L is the energy-equivalent value with the largest rung current set to 1 A. Its capacitance column is
@@ -461,7 +461,7 @@ coilSel.addEventListener("change", () => { st.coil = +coilSel.value; build3d(); 
 rasterR.addEventListener("input", () => { st.rd = +rasterR.value; updateAll(); });
 offX.addEventListener("change", () => { st.ox = +offX.value || 0; updateAll(); });
 offY.addEventListener("change", () => { st.oy = +offY.value || 0; updateAll(); });
-document.getElementById("btnCentre").addEventListener("click", () => { st.ox = 0; st.oy = 0; updateAll(); });
+document.getElementById("btnCenter").addEventListener("click", () => { st.ox = 0; st.oy = 0; updateAll(); });
 document.getElementById("btnFig8").addEventListener("click", () => { st.ox = 0; st.oy = -1; updateAll(); });
 
 /* ---------- 2D map ---------- */

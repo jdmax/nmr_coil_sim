@@ -6,7 +6,7 @@ Dependencies: numpy, matplotlib (plots only).
 
 Conventions
 -----------
-* Geometry is in millimetres everywhere. Fields come back in tesla per amp of
+* Geometry is in millimeters everywhere. Fields come back in tesla per amp of
   drive current (T/A); inductance in henries; resistance in ohms.
 * The static field B0 is along +z, which is also the cell (beam) axis, as in the
   CLAS12 solenoid. Only the transverse component B_T couples to the spins.
@@ -308,7 +308,7 @@ def saddle(radius: float, length: float, arc_deg: float = 120.0, turns: int = 1,
            n_arc: int = 24, center=(0, 0, 0), wire_radius: float = 0.25,
            name: str = "saddle") -> Coil:
     """Saddle pair on a cylinder of `radius` about z, windows facing +/-x so the
-    field at the centre is along +x (rotate with phi0_deg). Ginsberg & Melchner
+    field at the center is along +x (rotate with phi0_deg). Ginsberg & Melchner
     optimum: arc 120 deg, length/diameter = 2. Additional turns are nested
     inside the first, each window narrowed by `turn_spacing` (mm, along the arc)
     on each side and shortened by the same amount at each end."""
@@ -341,9 +341,9 @@ def alderman_grant(radius: float, length: float, strip_deg: float = 60.0,
                    center=(0, 0, 0), wire_radius: float = 0.1,
                    name: str = "Alderman-Grant") -> Coil:
     """Alderman-Grant (slotted-tube) resonator approximated by filaments.
-    Two axial strips centred at phi = +/-90 deg (field along +x), each split into
+    Two axial strips centered at phi = +/-90 deg (field along +x), each split into
     `n_filaments` parallel filaments carrying equal shares of the current.
-    End guard rings are modelled as filament arcs at z = +/-length/2, each
+    End guard rings are modeled as filament arcs at z = +/-length/2, each
     strip's current splitting equally both ways round the ring. Real RF current
     peaks at strip edges; this is the uniform-share approximation. Note the
     real device is a mostly-closed metal sleeve: check microwave access."""
@@ -376,7 +376,7 @@ def birdcage(radius: float, length: float, n_rungs: int = 8, mode: int = 1,
              center=(0, 0, 0), wire_radius: float = 0.25,
              name: str = "birdcage") -> Coil:
     """Birdcage with the ideal mode-`mode` current pattern imposed:
-    rung k at phi_k carries sin(mode*phi_k) (normalised to max |I| = 1), so
+    rung k at phi_k carries sin(mode*phi_k) (normalized to max |I| = 1), so
     mode 1 gives a uniform field along +x. End-ring currents follow from
     Kirchhoff's law at each node (zero-mean). Capacitor placement (low/high-pass)
     does not change the magnetostatic field of a given mode, only its frequency."""
@@ -530,8 +530,8 @@ def zavg_map(coil: Coil, cell: Cell, pixel: float = 0.15, nz: int = 21,
              b0_axis=(0, 0, 1)):
     """B_T^2 averaged over the cell length on a square pixel grid covering the
     cell cross-section (the quantity plotted in CLAS Note Fig. 8).
-    Returns dict with x, y (pixel centres, mm, relative to cell centre),
-    v (z-averaged B_T^2 normalised to its mean over the cell, 0 outside) and
+    Returns dict with x, y (pixel centers, mm, relative to cell center),
+    v (z-averaged B_T^2 normalized to its mean over the cell, 0 outside) and
     w (fraction of each pixel inside the cell wall, from 4x4 supersampling).
     The raster fraction for any circle is sum(v*w inside)/sum(v*w)."""
     R = cell.radius
@@ -563,7 +563,7 @@ def zavg_map(coil: Coil, cell: Cell, pixel: float = 0.15, nz: int = 21,
 
 
 def map_fraction(m: dict, raster_radius: float, raster_offset=(0.0, 0.0)) -> float:
-    """Raster fraction from a zavg_map result (pixel-centre test)."""
+    """Raster fraction from a zavg_map result (pixel-center test)."""
     X, Y = np.meshgrid(m["x"], m["y"])
     inside = (X - raster_offset[0]) ** 2 + (Y - raster_offset[1]) ** 2 <= raster_radius ** 2
     S = m["v"] * m["w"]
@@ -573,7 +573,7 @@ def map_fraction(m: dict, raster_radius: float, raster_offset=(0.0, 0.0)) -> flo
 def surface_map(coil: Coil, cell: Cell, nphi: int = 72, nz: int = 41, ncap: int = 8,
                 b0_axis=(0, 0, 1), norm: float | None = None):
     """B_T^2 on the cell's outer surface: side wall (nz x nphi) and both end caps
-    (ncap x nphi), normalised to the mean over the cell volume. For 3D maps like
+    (ncap x nphi), normalized to the mean over the cell volume. For 3D maps like
     CLAS Note Fig. 8 (left)."""
     R, L = cell.radius, cell.length
     c = np.asarray(cell.center, float)
@@ -671,7 +671,7 @@ def plot_midplane(coil: Coil, cell: Cell, raster_radius: float | None = None,
                   raster_offset=(0, 0), z: float = 0.0, extent: float | None = None,
                   n: int = 161, ax=None, normalize: bool = True, vmax: float = 2.0,
                   show_wires: bool = True):
-    """Map of B_T^2 in the plane z = const, normalised to its mean over the cell
+    """Map of B_T^2 in the plane z = const, normalized to its mean over the cell
     cross-section. Cell wall solid, raster dashed."""
     import matplotlib.pyplot as plt
     if ax is None:
@@ -715,7 +715,7 @@ def plot_midplane(coil: Coil, cell: Cell, raster_radius: float | None = None,
 
 
 def plot_axial_profile(coils, cell: Cell, ax=None, r: float = 0.0):
-    """Relative B_T along z at radius r on the x axis, each normalised at z = 0."""
+    """Relative B_T along z at radius r on the x axis, each normalized at z = 0."""
     import matplotlib.pyplot as plt
     if ax is None:
         _, ax = plt.subplots(figsize=(5, 3.2))
