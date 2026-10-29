@@ -21,6 +21,13 @@ You can drag the beam raster, rotate a 3D view of B_T² on the cell surface, set
 core and shell polarizations to see the deuteron signal with its area and peak-fit
 results, and compare inductance and tuning capacitance across coils.
 
+**Two pages.** Both are served from the same site:
+
+| Address | What it is |
+|---|---|
+| `https://jdmax.github.io/nmr_coil_sim/` | Full explorer, with the coil designer running in Pyodide |
+| `https://jdmax.github.io/nmr_coil_sim/explorer.html` | Coil Raster Explorer as one self-contained file: preset coils only, no Python, works offline; you can also download it and open it locally |
+
 **Publishing.** In the repository settings, under *Pages → Build and deployment*,
 set *Source* to **GitHub Actions**. The workflow in `.github/workflows/pages.yml`
 then:
@@ -45,7 +52,7 @@ python test_coilsim.py        # checks against closed-form results; prints ALL P
 python compare_coils.py       # coil comparison on the 15 mm cell -> figures/
 python fig8_reproduction.py   # CLAS Note Fig. 8 reproduction -> figures/
 python deuteron_two_zone.py   # area vs. peak-fit deuteron polarization -> figures/
-python build_explorer.py      # presets at full resolution -> web/data/default.json, explorer.html
+python build_explorer.py      # presets at full resolution -> web/data/default.json, web/explorer.html
 ```
 
 ```python
@@ -68,7 +75,7 @@ cs.plot_cell_surface(coil, cell)             # 3D surface map with the wires
 | `deuteron_signals.py` | Two-zone deuteron signals and area vs. peak-fit polarization, with the DeuteronPeakFit lineshape |
 | `test_coilsim.py` | Validation against analytic results (loop and wire fields, loop and square inductance, saddle and birdcage uniformity) |
 | `compare_coils.py`, `fig8_reproduction.py`, `deuteron_two_zone.py` | Studies that write figures to `figures/` |
-| `build_explorer.py`, `explorer_template.html` | Build the preset data and a self-contained single-file explorer |
+| `build_explorer.py`, `explorer_template.html` | Build the preset data (`web/data/default.json`) and the single-file explorer (`web/explorer.html`); `--from-json` rebuilds only the page |
 | `serve_web.py`, `web/` | GitHub Pages front end and its build/preview script |
 
 ## Figures of merit
