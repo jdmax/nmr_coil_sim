@@ -10,6 +10,10 @@ strongly (CLAS Note, Sec. 3.3).
 Everything is plain NumPy. The same code runs offline and, through Pyodide, in the
 browser front end.
 
+**Try it in the browser:**
+- [Coil explorer and designer](https://jdmax.github.io/nmr_coil_sim/): preset coils, plus new coils computed in Pyodide
+- [Coil Raster Explorer, single file](https://jdmax.github.io/nmr_coil_sim/explorer.html): preset coils only, works offline
+
 ## Web app
 
 `web/` is a static site for GitHub Pages:
@@ -25,8 +29,8 @@ results, and compare inductance and tuning capacitance across coils.
 
 | Address | What it is |
 |---|---|
-| `https://jdmax.github.io/nmr_coil_sim/` | Full explorer, with the coil designer running in Pyodide |
-| `https://jdmax.github.io/nmr_coil_sim/explorer.html` | Coil Raster Explorer as one self-contained file: preset coils only, no Python, works offline; you can also download it and open it locally |
+| [jdmax.github.io/nmr_coil_sim/](https://jdmax.github.io/nmr_coil_sim/) | Full explorer, with the coil designer running in Pyodide |
+| [jdmax.github.io/nmr_coil_sim/explorer.html](https://jdmax.github.io/nmr_coil_sim/explorer.html) | Coil Raster Explorer as one self-contained file: preset coils only, no Python, works offline; you can also download it and open it locally |
 
 **Publishing.** In the repository settings, under *Pages → Build and deployment*,
 set *Source* to **GitHub Actions**. The workflow in `.github/workflows/pages.yml`
