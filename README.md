@@ -131,3 +131,12 @@ copied in under its MIT license.
 - Coil Q uses room-temperature copper, for comparing coils only.
 - Fields are valid while unbroken conductor runs stay below about λ/10; the
   `len/lam` column flags runs that don't.
+
+## Author
+
+James Maxwell ([@jdmax](https://github.com/jdmax))
+
+## License
+
+MIT; see [LICENSE](LICENSE). The deuteron lineshape in `deuteron_signals.py` comes from
+[DeuteronPeakFit](https://github.com/jdmax/DeuteronPeakFit), also under the MIT license.
