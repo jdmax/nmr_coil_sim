@@ -334,6 +334,7 @@ function buildTables() {
     if (rm) tr.querySelector(".rm").addEventListener("click", e => { e.stopPropagation(); removeCoils([c]); });
     tb.appendChild(tr);
   });
+  buildSignalRows();
   const cb = document.getElementById("cmpBody"); cb.innerHTML = "";
   cell().coils.forEach((c, i) => {
     const tr = document.createElement("tr"); tr.dataset.i = i;
@@ -464,6 +465,58 @@ function updateDeut(f) {
   drawDeut(f, r);
 }
 
+/* ---------- cw-NMR signal size ---------- */
+// Series Q-meter circuit at resonance: the coil (L, R = wL/Q_coil) at the end of a lossy n·λ/2 cable, plus a
+// damping resistor. To first order in the cable loss al the line presents Z_L + al (Z0 - Z_L^2/Z0), so it adds
+// al (Z0 + (wL)^2/Z0) in series. Signal as a fraction of the Q-curve height: eta * Q_c * chi''.
+const Z0 = 50, sig = { d: 0.15, p: 0.4, rd: 0 };
+const NUC = ["d", "p"], REF = { d: "rgc_d", p: "rgc_p" };
+function circuitQ(c, nuc) {
+  const wL = 2 * Math.PI * DATA.freqs[nuc] * 1e6 * c.L_nH * 1e-9, al = sig[nuc] / 8.686;   // dB -> Np
+  return wL / (wL / (nuc === "p" ? c.Q_p : c.Q_d) + al * (Z0 + wL * wL / Z0) + sig.rd);
+}
+const fx = x => !Number.isFinite(x) ? "–" : x >= 10 ? x.toFixed(0) : x >= 1 ? x.toFixed(1) : x.toFixed(2);
+function buildSignalRows() {
+  for (const n of NUC) document.getElementById(`sigF${n}`).textContent = DATA.freqs[n].toFixed(1);
+  const sb = document.getElementById("sigBody"); sb.innerHTML = "";
+  cell().coils.forEach((c, i) => {
+    const tr = document.createElement("tr"); tr.dataset.i = i;
+    tr.innerHTML = `<td>${c.name}<span class="group">${c.group}</span></td>` +
+      NUC.map(n => `<td class="num q${n}"></td><td class="num t${n}"></td><td class="num r${n}"></td>`).join("");
+    tr.addEventListener("click", () => selectCoil(i));
+    sb.appendChild(tr);
+  });
+}
+function updateSignals(r) {
+  const coils = cell().coils, ref = {};
+  for (const n of NUC) {
+    const c = coils.find(e => e.key === REF[n]); if (!c) continue;
+    const t = c.eta * circuitQ(c, n);
+    ref[n] = { t, r: t * fraction(c.map, r, st.ox, st.oy) };
+  }
+  const rel = NUC.every(n => ref[n]);
+  [...document.querySelectorAll("#sigBody tr")].forEach(tr => {
+    const c = coils[+tr.dataset.i], fk = fraction(c.map, r, st.ox, st.oy);
+    for (const n of NUC) {
+      const q = circuitQ(c, n), t = c.eta * q;
+      tr.querySelector(`.q${n}`).textContent = q.toFixed(1);
+      tr.querySelector(`.t${n}`).textContent = rel ? fx(t / ref[n].t) + "×" : fx(t);
+      tr.querySelector(`.r${n}`).textContent = rel ? fx(t * fk / ref[n].r) + "×" : fx(t * fk);
+    }
+    tr.classList.toggle("sel", +tr.dataset.i === st.coil);
+  });
+  document.getElementById("sigRef").textContent = rel
+    ? "Signals relative to the RGC deuteron spiral and RGC proton loop on this cell, at this raster."
+    : "No RGC coil on this cell size: signals are η·Q_c, per unit χ″, as a fraction of the Q-curve height.";
+}
+for (const [id, k] of [["sigLd", "d"], ["sigLp", "p"], ["sigRd", "rd"]]) {
+  const el = document.getElementById(id); el.value = sig[k];
+  el.addEventListener("input", () => {
+    const v = +el.value; if (el.value === "" || !Number.isFinite(v) || v < 0) return;
+    sig[k] = v; updateSignals(st.rd / 2);
+  });
+}
+
 /* ---------- update ---------- */
 function ceilingFrac() {
   // area of raster ∩ cell / area of cell, from the uniform weight map of any coil
@@ -502,6 +555,7 @@ function updateAll() {
     tr.classList.toggle("sel", k === st.coil);
   });
   [...document.querySelectorAll("#tuneBody tr")].forEach(tr => tr.classList.toggle("sel", +tr.dataset.i === st.coil));
+  updateSignals(r);
   drawMap(); draw3d(); updateDeut(f);
 }
 

@@ -185,6 +185,32 @@
   </section>
 
   <section class="panel">
+    <h2>How big is the NMR signal?</h2>
+    <p>The Q-meter signal, as a fraction of the Q-curve height, is η·Q<sub>c</sub>·χ″, with circuit Q
+      Q<sub>c</sub> = ωL / (R<sub>coil</sub> + R<sub>cable</sub> + R<sub>d</sub>). The λ/2 cable between the coil and the
+      tuning capacitor, with loss αℓ, adds R<sub>cable</sub> ≈ αℓ (Z<sub>0</sub> + (ωL)²/Z<sub>0</sub>) in series
+      (Z<sub>0</sub> = 50 Ω), so coils with large ωL lose more in the cable. A coil embedded in the material couples
+      strongly (large η) even with little inductance. "From raster" counts only the rastered material: the whole-cell
+      signal times f. Set the cable losses and damping resistor so the RGC rows match your measured Q-curves.</p>
+    <div class="sigctl">
+      <div class="ctl"><label class="eyebrow" for="sigLd">Cable loss at <span id="sigFd"></span> MHz (dB)</label><input type="number" id="sigLd" step="0.05" min="0"></div>
+      <div class="ctl"><label class="eyebrow" for="sigLp">Cable loss at <span id="sigFp"></span> MHz (dB)</label><input type="number" id="sigLp" step="0.05" min="0"></div>
+      <div class="ctl"><label class="eyebrow" for="sigRd">Damping resistor (Ω)</label><input type="number" id="sigRd" step="0.5" min="0"></div>
+      <span class="hint" id="sigRef"></span>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th rowspan="2">Coil</th><th colspan="3" class="grp">Deuteron</th><th colspan="3" class="grp">Proton</th></tr>
+          <tr><th class="num">Circuit Q</th><th class="num">Whole cell</th><th class="num">From raster</th>
+            <th class="num">Circuit Q</th><th class="num">Whole cell</th><th class="num">From raster</th></tr>
+        </thead>
+        <tbody id="sigBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel">
     <h2>Can it be tuned?</h2>
     <p>Inductance from a partial-inductance (Neumann) calculation of each wire model, and the series capacitance
       that resonates it. As references: the RGC proton loop model needs about 12 pF at 212.6 MHz, and the RGC
@@ -228,6 +254,10 @@
       <li>The area method assumes a calibration constant taken on uniformly polarized material. RGC deuteron calibrations came
         from peak fits on golden events, so if a golden event was itself non-uniform, its peak-fit bias passes into every
         area-based value that uses that constant.</li>
+      <li>Signal size uses a lumped series circuit: the coil (resistance from room-temperature copper) at the end of a
+        λ/2 cable, with the cable loss to first order. Birdcages count as one lumped inductor; tuned by their own
+        capacitors and matched to the line, they would lose less in the cable. The proton numbers also assume the
+        coil is short compared with λ (see "Wire run / λ").</li>
     </ul>
   </section>
   <footer class="site"><a href="explorer.html">Single-file explorer</a> (preset coils only, no Python; works offline).

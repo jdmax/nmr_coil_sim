@@ -155,6 +155,8 @@ tbody tr.sel td:first-child { box-shadow: inset 3px 0 0 var(--copper); }
   border: 1px solid transparent; border-radius: 6px; padding: 1px 6px; margin-left: 4px; cursor: pointer;
 }
 .rm:hover { color: var(--bad); border-color: var(--bad); }
+.sigctl { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: flex-end; margin: 0 0 12px; }
+th.grp { text-align: center; }
 .barcell { min-width: 160px; width: 30%; }
 .bar { position: relative; height: 12px; background: var(--track); border-radius: 3px; }
 .bar .fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--copper); border-radius: 3px; }

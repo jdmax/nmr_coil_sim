@@ -23,7 +23,8 @@ browser front end.
 
 You can drag the beam raster, rotate a 3D view of B_T² on the cell surface, set
 core and shell polarizations to see the deuteron signal with its area and peak-fit
-results, and compare inductance and tuning capacitance across coils.
+results, and compare cw-NMR signal size, inductance and tuning capacitance across
+coils.
 
 **Two pages.** Both are served from the same site:
 
@@ -89,7 +90,8 @@ cs.plot_cell_surface(coil, cell)             # 3D surface map with the wires
 | Raster fraction f | CLAS Note Eq. 3: ∫raster B_T² dV / ∫cell B_T² dV |
 | Uniform-coil ceiling | The raster's share of the cell area, (R_b/R_t)² for a centered raster |
 | Worst 1 mm shift | Largest change in f when the raster moves 1 mm in any direction |
-| η | Transverse filling factor ∫cell B_T² dV / (μ0 L); signal ∝ η·Q |
+| η | Transverse filling factor ∫cell B_T² dV / (μ0 L); signal ∝ η·Q_c |
+| Q_c, signal | Circuit Q = ωL / (R_coil + R_cable + R_d) for the coil at the end of a λ/2 cable with loss αℓ, which adds R_cable ≈ αℓ (Z0 + (ωL)²/Z0). The Q-meter signal as a fraction of the Q-curve height is η·Q_c·χ″; the explorer shows it relative to the RGC coil, for the whole cell and for the rastered material alone (× f). Cable loss and R_d are set on the page |
 | L, C | Inductance and the series capacitance that tunes it. For birdcages: capacitance per rung of a low-pass birdcage, C_rung = (N/2)/(ω²L) |
 
 ## The RGC coil model
