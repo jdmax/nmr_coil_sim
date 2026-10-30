@@ -515,18 +515,13 @@ function updateSignals(r) {
     ? "Signals relative to the RGC deuteron spiral and RGC proton loop on this cell, at this raster."
     : "No RGC coil on this cell size: signals are η·Q_c, per unit 4πχ″, as a fraction of the Q-curve height.";
 }
-for (const n of NUC) {
-  const k = chan[n], el = id => document.getElementById(`sig${id}${n}`);
-  const tSel = el("T"), loss = el("L");
-  tSel.value = k.cold ? "cold" : "warm"; loss.disabled = k.cold;
-  tSel.addEventListener("change", () => { k.cold = tSel.value === "cold"; loss.disabled = k.cold; updateSignals(st.rd / 2); });
-  for (const [e, key] of [[loss, "loss"], [el("R"), "r"], [el("H"), "lead"]]) {
-    e.value = k[key];
-    e.addEventListener("input", () => {
-      const v = +e.value; if (e.value === "" || !Number.isFinite(v) || v < 0) return;
-      k[key] = v; updateSignals(st.rd / 2);
-    });
-  }
+// deuteron: cold tank (Fig. 2 right); proton: warm tank with an n·λ/2 cable (Fig. 2 left), as in RGC
+for (const [id, n, key] of [["sigRd", "d", "r"], ["sigHd", "d", "lead"], ["sigLp", "p", "loss"], ["sigRp", "p", "r"], ["sigHp", "p", "lead"]]) {
+  const e = document.getElementById(id); e.value = chan[n][key];
+  e.addEventListener("input", () => {
+    const v = +e.value; if (e.value === "" || !Number.isFinite(v) || v < 0) return;
+    chan[n][key] = v; updateSignals(st.rd / 2);
+  });
 }
 
 /* ---------- update ---------- */

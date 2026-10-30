@@ -156,13 +156,7 @@ tbody tr:hover td { background: color-mix(in srgb, var(--copper) 5%, transparent
 tbody tr.sel td { background: color-mix(in srgb, var(--copper) 11%, transparent); }
 tbody tr.sel td:first-child { box-shadow: inset 3px 0 0 var(--copper); }
 .group { color: var(--muted); font-size: 0.76rem; display: block; }
-.sigctl { display: flex; flex-wrap: wrap; gap: 12px 16px; margin: 0 0 8px; }
-.sigctl fieldset {
-  display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: flex-end; margin: 0; min-width: 0;
-  border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px 12px;
-}
-.sigctl legend { font: 600 0.8rem var(--f-display); color: var(--ink-2); padding: 0 4px; }
-.sigctl input:disabled { opacity: 0.45; }
+.sigctl { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: flex-end; margin: 0 0 8px; }
 #sigRef { margin: 0 0 12px; }
 th.grp { text-align: center; }
 .barcell { min-width: 160px; width: 30%; }
@@ -341,29 +335,20 @@ th.grp { text-align: center; }
       ESR here too) and, for a warm tank, the nλ/2 cable between C and the coil, which adds
       αℓ (Z<sub>0</sub> + ω²(L + L<sub>lead</sub>)²/Z<sub>0</sub>) with Z<sub>0</sub> = 50 Ω. Leads keep their field
       outside the material, so η falls to η·L/(L + L<sub>lead</sub>). "From raster" counts only the rastered material:
-      the whole-cell signal times f. The defaults follow the RGC layout (cold deuteron tank, warm proton tank), but the
-      resistances, cable losses and lead inductances are placeholders: set them so the RGC rows match measured Q-curves.</p>
+      the whole-cell signal times f. As in RGC, the deuteron tank is cold (C and R beside the coil) and the proton tank warm (C
+      and R in the Q-meter, nλ/2 cable to the coil). The resistances, cable loss and lead inductances are placeholders: set them so the RGC rows match measured Q-curves.</p>
     <div class="sigctl">
-      <fieldset>
-        <legend>Deuteron, <span id="sigFd"></span> MHz</legend>
-        <div class="ctl"><label class="eyebrow" for="sigTd">Tank</label><select id="sigTd"><option value="cold">Cold, beside the coil</option><option value="warm">Warm, nλ/2 cable to coil</option></select></div>
-        <div class="ctl"><label class="eyebrow" for="sigLd">Cable loss (dB)</label><input type="number" id="sigLd" step="0.05" min="0"></div>
-        <div class="ctl"><label class="eyebrow" for="sigRd">R (Ω)</label><input type="number" id="sigRd" step="0.1" min="0"></div>
-        <div class="ctl"><label class="eyebrow" for="sigHd">Leads (nH)</label><input type="number" id="sigHd" step="5" min="0"></div>
-      </fieldset>
-      <fieldset>
-        <legend>Proton, <span id="sigFp"></span> MHz</legend>
-        <div class="ctl"><label class="eyebrow" for="sigTp">Tank</label><select id="sigTp"><option value="cold">Cold, beside the coil</option><option value="warm">Warm, nλ/2 cable to coil</option></select></div>
-        <div class="ctl"><label class="eyebrow" for="sigLp">Cable loss (dB)</label><input type="number" id="sigLp" step="0.05" min="0"></div>
-        <div class="ctl"><label class="eyebrow" for="sigRp">R (Ω)</label><input type="number" id="sigRp" step="0.1" min="0"></div>
-        <div class="ctl"><label class="eyebrow" for="sigHp">Leads (nH)</label><input type="number" id="sigHp" step="5" min="0"></div>
-      </fieldset>
+      <div class="ctl"><label class="eyebrow" for="sigRd">Deuteron R (Ω)</label><input type="number" id="sigRd" step="0.1" min="0"></div>
+      <div class="ctl"><label class="eyebrow" for="sigHd">Deuteron leads (nH)</label><input type="number" id="sigHd" step="5" min="0"></div>
+      <div class="ctl"><label class="eyebrow" for="sigLp">Proton cable loss (dB)</label><input type="number" id="sigLp" step="0.05" min="0"></div>
+      <div class="ctl"><label class="eyebrow" for="sigRp">Proton R (Ω)</label><input type="number" id="sigRp" step="0.1" min="0"></div>
+      <div class="ctl"><label class="eyebrow" for="sigHp">Proton leads (nH)</label><input type="number" id="sigHp" step="5" min="0"></div>
     </div>
     <p class="hint" id="sigRef"></p>
     <div class="scroll">
       <table>
         <thead>
-          <tr><th rowspan="2">Coil</th><th colspan="4" class="grp">Deuteron</th><th colspan="4" class="grp">Proton</th></tr>
+          <tr><th rowspan="2">Coil</th><th colspan="4" class="grp">Deuteron, <span id="sigFd"></span> MHz, cold tank</th><th colspan="4" class="grp">Proton, <span id="sigFp"></span> MHz, warm tank</th></tr>
           <tr><th class="num">Circuit Q</th><th class="num">C (pF)</th><th class="num">Whole cell</th><th class="num">From raster</th>
             <th class="num">Circuit Q</th><th class="num">C (pF)</th><th class="num">Whole cell</th><th class="num">From raster</th></tr>
         </thead>
@@ -926,18 +911,13 @@ function updateSignals(r) {
     ? "Signals relative to the RGC deuteron spiral and RGC proton loop on this cell, at this raster."
     : "No RGC coil on this cell size: signals are η·Q_c, per unit 4πχ″, as a fraction of the Q-curve height.";
 }
-for (const n of NUC) {
-  const k = chan[n], el = id => document.getElementById(`sig${id}${n}`);
-  const tSel = el("T"), loss = el("L");
-  tSel.value = k.cold ? "cold" : "warm"; loss.disabled = k.cold;
-  tSel.addEventListener("change", () => { k.cold = tSel.value === "cold"; loss.disabled = k.cold; updateSignals(st.rd / 2); });
-  for (const [e, key] of [[loss, "loss"], [el("R"), "r"], [el("H"), "lead"]]) {
-    e.value = k[key];
-    e.addEventListener("input", () => {
-      const v = +e.value; if (e.value === "" || !Number.isFinite(v) || v < 0) return;
-      k[key] = v; updateSignals(st.rd / 2);
-    });
-  }
+// deuteron: cold tank (Fig. 2 right); proton: warm tank with an n·λ/2 cable (Fig. 2 left), as in RGC
+for (const [id, n, key] of [["sigRd", "d", "r"], ["sigHd", "d", "lead"], ["sigLp", "p", "loss"], ["sigRp", "p", "r"], ["sigHp", "p", "lead"]]) {
+  const e = document.getElementById(id); e.value = chan[n][key];
+  e.addEventListener("input", () => {
+    const v = +e.value; if (e.value === "" || !Number.isFinite(v) || v < 0) return;
+    chan[n][key] = v; updateSignals(st.rd / 2);
+  });
 }
 
 /* ---------- update ---------- */

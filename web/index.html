@@ -193,29 +193,20 @@
       ESR here too) and, for a warm tank, the nλ/2 cable between C and the coil, which adds
       αℓ (Z<sub>0</sub> + ω²(L + L<sub>lead</sub>)²/Z<sub>0</sub>) with Z<sub>0</sub> = 50 Ω. Leads keep their field
       outside the material, so η falls to η·L/(L + L<sub>lead</sub>). "From raster" counts only the rastered material:
-      the whole-cell signal times f. The defaults follow the RGC layout (cold deuteron tank, warm proton tank), but the
-      resistances, cable losses and lead inductances are placeholders: set them so the RGC rows match measured Q-curves.</p>
+      the whole-cell signal times f. As in RGC, the deuteron tank is cold (C and R beside the coil) and the proton tank warm (C
+      and R in the Q-meter, nλ/2 cable to the coil). The resistances, cable loss and lead inductances are placeholders: set them so the RGC rows match measured Q-curves.</p>
     <div class="sigctl">
-      <fieldset>
-        <legend>Deuteron, <span id="sigFd"></span> MHz</legend>
-        <div class="ctl"><label class="eyebrow" for="sigTd">Tank</label><select id="sigTd"><option value="cold">Cold, beside the coil</option><option value="warm">Warm, nλ/2 cable to coil</option></select></div>
-        <div class="ctl"><label class="eyebrow" for="sigLd">Cable loss (dB)</label><input type="number" id="sigLd" step="0.05" min="0"></div>
-        <div class="ctl"><label class="eyebrow" for="sigRd">R (Ω)</label><input type="number" id="sigRd" step="0.1" min="0"></div>
-        <div class="ctl"><label class="eyebrow" for="sigHd">Leads (nH)</label><input type="number" id="sigHd" step="5" min="0"></div>
-      </fieldset>
-      <fieldset>
-        <legend>Proton, <span id="sigFp"></span> MHz</legend>
-        <div class="ctl"><label class="eyebrow" for="sigTp">Tank</label><select id="sigTp"><option value="cold">Cold, beside the coil</option><option value="warm">Warm, nλ/2 cable to coil</option></select></div>
-        <div class="ctl"><label class="eyebrow" for="sigLp">Cable loss (dB)</label><input type="number" id="sigLp" step="0.05" min="0"></div>
-        <div class="ctl"><label class="eyebrow" for="sigRp">R (Ω)</label><input type="number" id="sigRp" step="0.1" min="0"></div>
-        <div class="ctl"><label class="eyebrow" for="sigHp">Leads (nH)</label><input type="number" id="sigHp" step="5" min="0"></div>
-      </fieldset>
+      <div class="ctl"><label class="eyebrow" for="sigRd">Deuteron R (Ω)</label><input type="number" id="sigRd" step="0.1" min="0"></div>
+      <div class="ctl"><label class="eyebrow" for="sigHd">Deuteron leads (nH)</label><input type="number" id="sigHd" step="5" min="0"></div>
+      <div class="ctl"><label class="eyebrow" for="sigLp">Proton cable loss (dB)</label><input type="number" id="sigLp" step="0.05" min="0"></div>
+      <div class="ctl"><label class="eyebrow" for="sigRp">Proton R (Ω)</label><input type="number" id="sigRp" step="0.1" min="0"></div>
+      <div class="ctl"><label class="eyebrow" for="sigHp">Proton leads (nH)</label><input type="number" id="sigHp" step="5" min="0"></div>
     </div>
     <p class="hint" id="sigRef"></p>
     <div class="scroll">
       <table>
         <thead>
-          <tr><th rowspan="2">Coil</th><th colspan="4" class="grp">Deuteron</th><th colspan="4" class="grp">Proton</th></tr>
+          <tr><th rowspan="2">Coil</th><th colspan="4" class="grp">Deuteron, <span id="sigFd"></span> MHz, cold tank</th><th colspan="4" class="grp">Proton, <span id="sigFp"></span> MHz, warm tank</th></tr>
           <tr><th class="num">Circuit Q</th><th class="num">C (pF)</th><th class="num">Whole cell</th><th class="num">From raster</th>
             <th class="num">Circuit Q</th><th class="num">C (pF)</th><th class="num">Whole cell</th><th class="num">From raster</th></tr>
         </thead>
