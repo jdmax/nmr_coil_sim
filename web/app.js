@@ -466,14 +466,19 @@ function updateDeut(f) {
 }
 
 /* ---------- cw-NMR signal size ---------- */
-// Series Q-meter circuit at resonance: the coil (L, R = wL/Q_coil) at the end of a lossy n·λ/2 cable, plus a
-// damping resistor. To first order in the cable loss al the line presents Z_L + al (Z0 - Z_L^2/Z0), so it adds
-// al (Z0 + (wL)^2/Z0) in series. Signal as a fraction of the Q-curve height: eta * Q_c * chi''.
-const Z0 = 50, sig = { d: 0.15, p: 0.4, rd: 0 };
-const NUC = ["d", "p"], REF = { d: "rgc_d", p: "rgc_p" };
-function circuitQ(c, nuc) {
-  const wL = 2 * Math.PI * DATA.freqs[nuc] * 1e6 * c.L_nH * 1e-9, al = sig[nuc] / 8.686;   // dB -> Np
-  return wL / (wL / (nuc === "p" ? c.Q_p : c.Q_d) + al * (Z0 + wL * wL / Z0) + sig.rd);
+// Series Q-meter at resonance (Maxwell et al., Fig. 2), driven at constant current through R_CC. The detector sees
+// Re dZ = w L 4 pi eta chi'', i.e. 4 pi eta Q_c chi'' of the Q-curve height; the table compares eta * Q_c.
+// Warm tank: C and R in the Q-meter, the coil at the end of an n·λ/2 cable. To first order in its loss al the line
+// presents Z + al (Z0 - Z^2/Z0), adding al (Z0 + X^2/Z0) in series, X = w (L + L_lead). Cold tank: C and R beside
+// the coil, no resonant cable inside the tank. Leads store field outside the material (eta -> eta L / (L + L_lead))
+// and have resistance at the coil's Q.
+const Z0 = 50, NUC = ["d", "p"], REF = { d: "rgc_d", p: "rgc_p" };
+const chan = { d: { cold: true, loss: 0.15, r: 1, lead: 0 }, p: { cold: false, loss: 0.4, r: 0, lead: 0 } };
+function tank(c, n) {
+  const k = chan[n], w = 2 * Math.PI * DATA.freqs[n] * 1e6, L = c.L_nH * 1e-9, Lt = L + k.lead * 1e-9, X = w * Lt;
+  const R = X / (n === "p" ? c.Q_p : c.Q_d) + (k.cold ? 0 : k.loss / 8.686 * (Z0 + X * X / Z0)) + k.r;   // dB -> Np
+  const Q = X / R;
+  return { Q, s: c.eta * L / Lt * Q, C: 1e12 / (w * X) * (c.rungs ? c.rungs / 2 : 1) };
 }
 const fx = x => !Number.isFinite(x) ? "–" : x >= 10 ? x.toFixed(0) : x >= 1 ? x.toFixed(1) : x.toFixed(2);
 function buildSignalRows() {
@@ -482,7 +487,7 @@ function buildSignalRows() {
   cell().coils.forEach((c, i) => {
     const tr = document.createElement("tr"); tr.dataset.i = i;
     tr.innerHTML = `<td>${c.name}<span class="group">${c.group}</span></td>` +
-      NUC.map(n => `<td class="num q${n}"></td><td class="num t${n}"></td><td class="num r${n}"></td>`).join("");
+      NUC.map(n => `<td class="num q${n}"></td><td class="num c${n}"></td><td class="num t${n}"></td><td class="num r${n}"></td>`).join("");
     tr.addEventListener("click", () => selectCoil(i));
     sb.appendChild(tr);
   });
@@ -491,30 +496,37 @@ function updateSignals(r) {
   const coils = cell().coils, ref = {};
   for (const n of NUC) {
     const c = coils.find(e => e.key === REF[n]); if (!c) continue;
-    const t = c.eta * circuitQ(c, n);
-    ref[n] = { t, r: t * fraction(c.map, r, st.ox, st.oy) };
+    const s = tank(c, n).s;
+    ref[n] = { t: s, r: s * fraction(c.map, r, st.ox, st.oy) };
   }
   const rel = NUC.every(n => ref[n]);
   [...document.querySelectorAll("#sigBody tr")].forEach(tr => {
     const c = coils[+tr.dataset.i], fk = fraction(c.map, r, st.ox, st.oy);
     for (const n of NUC) {
-      const q = circuitQ(c, n), t = c.eta * q;
-      tr.querySelector(`.q${n}`).textContent = q.toFixed(1);
-      tr.querySelector(`.t${n}`).textContent = rel ? fx(t / ref[n].t) + "×" : fx(t);
-      tr.querySelector(`.r${n}`).textContent = rel ? fx(t * fk / ref[n].r) + "×" : fx(t * fk);
+      const t = tank(c, n);
+      tr.querySelector(`.q${n}`).textContent = t.Q.toFixed(1);
+      tr.querySelector(`.c${n}`).innerHTML = (t.C >= 10 ? t.C.toFixed(0) : t.C.toFixed(1)) + (c.rungs ? `<span class="group">per rung</span>` : "");
+      tr.querySelector(`.t${n}`).textContent = rel ? fx(t.s / ref[n].t) + "×" : fx(t.s);
+      tr.querySelector(`.r${n}`).textContent = rel ? fx(t.s * fk / ref[n].r) + "×" : fx(t.s * fk);
     }
     tr.classList.toggle("sel", +tr.dataset.i === st.coil);
   });
   document.getElementById("sigRef").textContent = rel
     ? "Signals relative to the RGC deuteron spiral and RGC proton loop on this cell, at this raster."
-    : "No RGC coil on this cell size: signals are η·Q_c, per unit χ″, as a fraction of the Q-curve height.";
+    : "No RGC coil on this cell size: signals are η·Q_c, per unit 4πχ″, as a fraction of the Q-curve height.";
 }
-for (const [id, k] of [["sigLd", "d"], ["sigLp", "p"], ["sigRd", "rd"]]) {
-  const el = document.getElementById(id); el.value = sig[k];
-  el.addEventListener("input", () => {
-    const v = +el.value; if (el.value === "" || !Number.isFinite(v) || v < 0) return;
-    sig[k] = v; updateSignals(st.rd / 2);
-  });
+for (const n of NUC) {
+  const k = chan[n], el = id => document.getElementById(`sig${id}${n}`);
+  const tSel = el("T"), loss = el("L");
+  tSel.value = k.cold ? "cold" : "warm"; loss.disabled = k.cold;
+  tSel.addEventListener("change", () => { k.cold = tSel.value === "cold"; loss.disabled = k.cold; updateSignals(st.rd / 2); });
+  for (const [e, key] of [[loss, "loss"], [el("R"), "r"], [el("H"), "lead"]]) {
+    e.value = k[key];
+    e.addEventListener("input", () => {
+      const v = +e.value; if (e.value === "" || !Number.isFinite(v) || v < 0) return;
+      k[key] = v; updateSignals(st.rd / 2);
+    });
+  }
 }
 
 /* ---------- update ---------- */

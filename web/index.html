@@ -186,24 +186,38 @@
 
   <section class="panel">
     <h2>How big is the NMR signal?</h2>
-    <p>The Q-meter signal, as a fraction of the Q-curve height, is η·Q<sub>c</sub>·χ″, with circuit Q
-      Q<sub>c</sub> = ωL / (R<sub>coil</sub> + R<sub>cable</sub> + R<sub>d</sub>). The λ/2 cable between the coil and the
-      tuning capacitor, with loss αℓ, adds R<sub>cable</sub> ≈ αℓ (Z<sub>0</sub> + (ωL)²/Z<sub>0</sub>) in series
-      (Z<sub>0</sub> = 50 Ω), so coils with large ωL lose more in the cable. A coil embedded in the material couples
-      strongly (large η) even with little inductance. "From raster" counts only the rastered material: the whole-cell
-      signal times f. Set the cable losses and damping resistor so the RGC rows match your measured Q-curves.</p>
+    <p>The Q-meter drives the tank at constant current (R<sub>CC</sub> ≫ |Z|), and the phase-sensitive detector sees the
+      real part of the change in tank impedance, ωL·4πη·χ″. Relative to the Q-curve height that is 4πη·Q<sub>c</sub>·χ″,
+      so the table compares η·Q<sub>c</sub>, with Q<sub>c</sub> = ω(L + L<sub>lead</sub>) / R<sub>total</sub>.
+      R<sub>total</sub> sums the coil and lead resistance (room-temperature copper), the tank resistor R (put the varactor
+      ESR here too) and, for a warm tank, the nλ/2 cable between C and the coil, which adds
+      αℓ (Z<sub>0</sub> + ω²(L + L<sub>lead</sub>)²/Z<sub>0</sub>) with Z<sub>0</sub> = 50 Ω. Leads keep their field
+      outside the material, so η falls to η·L/(L + L<sub>lead</sub>). "From raster" counts only the rastered material:
+      the whole-cell signal times f. The defaults follow the RGC layout (cold deuteron tank, warm proton tank), but the
+      resistances, cable losses and lead inductances are placeholders: set them so the RGC rows match measured Q-curves.</p>
     <div class="sigctl">
-      <div class="ctl"><label class="eyebrow" for="sigLd">Cable loss at <span id="sigFd"></span> MHz (dB)</label><input type="number" id="sigLd" step="0.05" min="0"></div>
-      <div class="ctl"><label class="eyebrow" for="sigLp">Cable loss at <span id="sigFp"></span> MHz (dB)</label><input type="number" id="sigLp" step="0.05" min="0"></div>
-      <div class="ctl"><label class="eyebrow" for="sigRd">Damping resistor (Ω)</label><input type="number" id="sigRd" step="0.5" min="0"></div>
-      <span class="hint" id="sigRef"></span>
+      <fieldset>
+        <legend>Deuteron, <span id="sigFd"></span> MHz</legend>
+        <div class="ctl"><label class="eyebrow" for="sigTd">Tank</label><select id="sigTd"><option value="cold">Cold, beside the coil</option><option value="warm">Warm, nλ/2 cable to coil</option></select></div>
+        <div class="ctl"><label class="eyebrow" for="sigLd">Cable loss (dB)</label><input type="number" id="sigLd" step="0.05" min="0"></div>
+        <div class="ctl"><label class="eyebrow" for="sigRd">R (Ω)</label><input type="number" id="sigRd" step="0.1" min="0"></div>
+        <div class="ctl"><label class="eyebrow" for="sigHd">Leads (nH)</label><input type="number" id="sigHd" step="5" min="0"></div>
+      </fieldset>
+      <fieldset>
+        <legend>Proton, <span id="sigFp"></span> MHz</legend>
+        <div class="ctl"><label class="eyebrow" for="sigTp">Tank</label><select id="sigTp"><option value="cold">Cold, beside the coil</option><option value="warm">Warm, nλ/2 cable to coil</option></select></div>
+        <div class="ctl"><label class="eyebrow" for="sigLp">Cable loss (dB)</label><input type="number" id="sigLp" step="0.05" min="0"></div>
+        <div class="ctl"><label class="eyebrow" for="sigRp">R (Ω)</label><input type="number" id="sigRp" step="0.1" min="0"></div>
+        <div class="ctl"><label class="eyebrow" for="sigHp">Leads (nH)</label><input type="number" id="sigHp" step="5" min="0"></div>
+      </fieldset>
     </div>
+    <p class="hint" id="sigRef"></p>
     <div class="scroll">
       <table>
         <thead>
-          <tr><th rowspan="2">Coil</th><th colspan="3" class="grp">Deuteron</th><th colspan="3" class="grp">Proton</th></tr>
-          <tr><th class="num">Circuit Q</th><th class="num">Whole cell</th><th class="num">From raster</th>
-            <th class="num">Circuit Q</th><th class="num">Whole cell</th><th class="num">From raster</th></tr>
+          <tr><th rowspan="2">Coil</th><th colspan="4" class="grp">Deuteron</th><th colspan="4" class="grp">Proton</th></tr>
+          <tr><th class="num">Circuit Q</th><th class="num">C (pF)</th><th class="num">Whole cell</th><th class="num">From raster</th>
+            <th class="num">Circuit Q</th><th class="num">C (pF)</th><th class="num">Whole cell</th><th class="num">From raster</th></tr>
         </thead>
         <tbody id="sigBody"></tbody>
       </table>
@@ -254,10 +268,10 @@
       <li>The area method assumes a calibration constant taken on uniformly polarized material. RGC deuteron calibrations came
         from peak fits on golden events, so if a golden event was itself non-uniform, its peak-fit bias passes into every
         area-based value that uses that constant.</li>
-      <li>Signal size uses a lumped series circuit: the coil (resistance from room-temperature copper) at the end of a
-        λ/2 cable, with the cable loss to first order. Birdcages count as one lumped inductor; tuned by their own
-        capacitors and matched to the line, they would lose less in the cable. The proton numbers also assume the
-        coil is short compared with λ (see "Wire run / λ").</li>
+      <li>Signal size uses a lumped series tank: coil and leads (resistance from room-temperature copper), tank resistor R
+        and, for a warm tank, the nλ/2 cable loss to first order. Birdcages count as one lumped inductor; tuned by their
+        own capacitors and matched to the line, they would lose less. The proton numbers also assume the coil is short
+        compared with λ (see "Wire run / λ"). C includes the leads; for birdcages it is per rung.</li>
     </ul>
   </section>
   <footer class="site"><a href="explorer.html">Single-file explorer</a> (preset coils only, no Python; works offline).
