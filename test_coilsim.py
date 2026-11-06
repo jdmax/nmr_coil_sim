@@ -69,5 +69,31 @@ pts, w = cell.grid()
 B = sol.field(pts)
 check("solenoid interior B", np.mean(B[:, 2]), MU0 * Nt / (Ls * 1e-3), 0.01)
 
+# 8. Long thin strip (tape) with the HF edge-crowded current K ~ 1/sqrt(a^2 - x^2):
+#    |B| = mu0 I / (2 pi |sqrt(zeta^2 - a^2)|), zeta = x + i h, half-width a
+a = 2.5
+strip = cs.as_tape(cs.polyline([[0, 0, -5000], [0, 0, 5000]], closed=False),
+                   2 * a, 0.035, normal=(0, 1, 0))
+for x, h in ((0.0, 1.0), (0.0, 3.0), (2.0, 1.0), (3.5, 0.0)):
+    B = np.linalg.norm(strip.field([[x, h, 0]])[0])
+    zeta = complex(x, h)
+    want = MU0 / (2 * np.pi * abs(np.sqrt(zeta * zeta - a * a)) * 1e-3)
+    check(f"strip field at x={x}, h={h} mm", B, want, 1e-3)
+
+# 9. Flat tape ring, thin strip = tube of radius w/4: L = mu0 R (ln(32 R / w_eff) - 2)
+R, wt = 10.0, 2.0
+ring = cs.as_tape(cs.circle_loop(R, n=180), wt, 0.035, normal=(0, 0, 1))
+weff = 4 * ring.equiv_radius()[0]
+check("tape ring inductance", ring.inductance(),
+      MU0 * R * 1e-3 * (np.log(32 * R / weff) - 2), 0.01)
+
+# 10. Tape orientation follows rotation and translation
+sd_t = cs.as_tape(cs.saddle(9.0, 40.0, 120.0), 3.0)
+moved = sd_t.rotated((0, 0, 1), 90).translated((1, 2, 3))
+p = np.array([[0.5, 0.3, 2.0], [-2.0, 1.0, -5.0]])
+Rz = cs._rotation_matrix((0, 0, 1), np.pi / 2)
+check("rotated tape coil field", np.linalg.norm(moved.field(p @ Rz.T + [1, 2, 3])),
+      np.linalg.norm(sd_t.field(p) @ Rz.T), 1e-9)
+
 print("\nALL PASS" if ok else "\nSOME CHECKS FAILED")
 raise SystemExit(0 if ok else 1)

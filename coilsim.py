@@ -20,6 +20,9 @@ Conventions
   Currents are imposed, not solved: a birdcage is assumed to sit in its ideal
   mode, and wide strips are approximated by evenly loaded filaments (real RF
   current crowds to the strip edges).
+* Conductors are round wire (radius `wire_radius`) or flat tape (copper tape,
+  foil, an etched strip); see as_tape(). A tape carries the high-frequency
+  current of an isolated thin strip, crowded towards its edges.
 
 Quick start
 -----------
@@ -31,15 +34,16 @@ Quick start
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field as dc_field
+from dataclasses import dataclass, replace, field as dc_field
 import numpy as np
 
 MU0 = 4e-7 * np.pi
 _MM = 1e-3  # mm -> m
+TAPE_SPACING = 0.4  # mm, mean filament spacing across a tape in Coil.field()
 
 __all__ = [
     "Coil", "Cell", "polyline", "circle_loop", "rect_loop", "spiral", "saddle",
-    "alderman_grant", "birdcage", "sampling_report", "print_report",
+    "alderman_grant", "birdcage", "as_tape", "sampling_report", "print_report",
     "offset_scan", "zavg_map", "map_fraction", "surface_map",
     "plot_midplane", "plot_geometry", "plot_axial_profile", "plot_zavg_map",
     "plot_cell_surface",
@@ -56,12 +60,21 @@ class Coil:
     currents: np.ndarray          # (N,) current per segment for 1 A drive
     wire_radius: float = 0.25     # mm, used for inductance, resistance, near-wire field
     name: str = "coil"
+    # Flat-tape conductors, per segment (see as_tape). Width 0 means round wire.
+    tape_width: np.ndarray | float = 0.0        # (N,) mm
+    tape_thickness: np.ndarray | float = 0.035  # (N,) mm
+    tape_dir: np.ndarray | None = None          # (N,3) unit vectors across the tape
 
     def __post_init__(self):
         self.starts = np.asarray(self.starts, float).reshape(-1, 3)
         self.ends = np.asarray(self.ends, float).reshape(-1, 3)
-        self.currents = np.broadcast_to(
-            np.asarray(self.currents, float), (len(self.starts),)).copy()
+        n = len(self.starts)
+        self.currents = np.broadcast_to(np.asarray(self.currents, float), (n,)).copy()
+        self.tape_width = np.broadcast_to(np.asarray(self.tape_width, float), (n,)).copy()
+        self.tape_thickness = np.broadcast_to(
+            np.asarray(self.tape_thickness, float), (n,)).copy()
+        self.tape_dir = (np.zeros((n, 3)) if self.tape_dir is None
+                         else np.asarray(self.tape_dir, float).reshape(n, 3).copy())
 
     # -- composition --------------------------------------------------------
     def __add__(self, other: "Coil") -> "Coil":
@@ -70,26 +83,28 @@ class Coil:
                     np.vstack([self.ends, other.ends]),
                     np.concatenate([self.currents, other.currents]),
                     wire_radius=self.wire_radius,
-                    name=f"{self.name}+{other.name}")
+                    name=f"{self.name}+{other.name}",
+                    tape_width=np.concatenate([self.tape_width, other.tape_width]),
+                    tape_thickness=np.concatenate([self.tape_thickness,
+                                                   other.tape_thickness]),
+                    tape_dir=np.vstack([self.tape_dir, other.tape_dir]))
 
     def scaled(self, k: float) -> "Coil":
-        return Coil(self.starts, self.ends, self.currents * k,
-                    self.wire_radius, self.name)
+        return replace(self, currents=self.currents * k)
 
     def translated(self, d) -> "Coil":
         d = np.asarray(d, float)
-        return Coil(self.starts + d, self.ends + d, self.currents,
-                    self.wire_radius, self.name)
+        return replace(self, starts=self.starts + d, ends=self.ends + d)
 
     def rotated(self, axis, angle_deg: float, origin=(0, 0, 0)) -> "Coil":
         """Rotate about `axis` through `origin` (right-hand rule)."""
         R = _rotation_matrix(axis, np.radians(angle_deg))
         o = np.asarray(origin, float)
-        return Coil((self.starts - o) @ R.T + o, (self.ends - o) @ R.T + o,
-                    self.currents, self.wire_radius, self.name)
+        return replace(self, starts=(self.starts - o) @ R.T + o,
+                       ends=(self.ends - o) @ R.T + o, tape_dir=self.tape_dir @ R.T)
 
     def renamed(self, name: str) -> "Coil":
-        return Coil(self.starts, self.ends, self.currents, self.wire_radius, name)
+        return replace(self, name=name)
 
     # -- geometry -------------------------------------------------------------
     @property
@@ -101,19 +116,63 @@ class Coil:
         parallel filaments count once). Compare with the wavelength."""
         return float(np.sum(self.seg_lengths * np.abs(self.currents)))
 
+    @property
+    def is_tape(self) -> np.ndarray:
+        return self.tape_width > 0
+
+    def equiv_radius(self) -> np.ndarray:
+        """Per-segment radius of the round tube with the same high-frequency
+        partial inductance. Round wire: wire_radius. Thin tape: w_eff/4 (a thin
+        strip with edge-crowded current is equivalent to a tube of radius w/4),
+        with Wheeler's thickness correction w_eff = w + (t/pi)(1 + ln(4 pi w/t)).
+        Valid for t << w."""
+        tape = self.is_tape
+        w = np.where(tape, self.tape_width, 1.0)
+        t = np.where(tape, self.tape_thickness, 1.0)
+        weff = w + t / np.pi * (1 + np.log(4 * np.pi * w / t))
+        return np.where(tape, weff / 4, self.wire_radius)
+
+    def filaments(self, spacing: float | None = None):
+        """(starts, ends, currents, radii) of the filaments the field is summed
+        over. Round-wire segments pass through. A tape segment of width w becomes
+        n ~ w/spacing filaments at the Chebyshev nodes x_k = (w/2) cos((2k-1)pi/2n),
+        each carrying I/n: by Gauss-Chebyshev quadrature this reproduces the
+        high-frequency current of an isolated thin strip, K(x) ~ 1/sqrt((w/2)^2 - x^2).
+        radii is the in-conductor taper radius used by field()."""
+        tape = self.is_tape
+        rad = np.full(len(self.starts), float(self.wire_radius))
+        if not tape.any():
+            return self.starts, self.ends, self.currents, rad
+        S, E, I, R = ([self.starts[~tape]], [self.ends[~tape]],
+                      [self.currents[~tape]], [rad[~tape]])
+        w = self.tape_width
+        n_all = np.clip(np.ceil(w / (spacing or TAPE_SPACING)), 4, 48).astype(int)
+        for n in np.unique(n_all[tape]):
+            sel = tape & (n_all == n)
+            x = np.cos((2 * np.arange(1, n + 1) - 1) * np.pi / (2 * n))      # (n,)
+            off = 0.5 * w[sel, None, None] * x[None, :, None] * self.tape_dir[sel, None, :]
+            S.append((self.starts[sel, None, :] + off).reshape(-1, 3))
+            E.append((self.ends[sel, None, :] + off).reshape(-1, 3))
+            I.append(np.repeat(self.currents[sel] / n, n))
+            # half the filament spacing at the strip centre, or half the thickness
+            R.append(np.repeat(np.maximum(np.pi * w[sel] / (4 * n),
+                                          self.tape_thickness[sel] / 2), n))
+        return np.vstack(S), np.vstack(E), np.concatenate(I), np.concatenate(R)
+
     # -- field ----------------------------------------------------------------
     def field(self, points, max_elems: float = 2e6) -> np.ndarray:
         """Exact Biot-Savart field of finite straight segments at `points` (M,3) mm.
         Returns (M,3) in T/A. Inside a wire (distance < wire_radius) the field
-        falls off linearly to zero, as for a uniform-current round wire."""
+        falls off linearly to zero, as for a uniform-current round wire. Tapes are
+        summed as filaments (see filaments())."""
         p_all = np.atleast_2d(np.asarray(points, float))
-        a, b, I = self.starts, self.ends, self.currents
+        a, b, I, rad = self.filaments()
         ax, ay, az = a[:, 0], a[:, 1], a[:, 2]
         bx, by, bz = b[:, 0], b[:, 1], b[:, 2]
         ab2 = np.einsum("ij,ij->i", b - a, b - a)
         out = np.empty_like(p_all)
         chunk = max(1, int(max_elems // max(1, len(a))))
-        inv_r2w = 1.0 / self.wire_radius ** 2
+        inv_r2w = 1.0 / rad ** 2
         for s in range(0, len(p_all), chunk):
             p = p_all[s:s + chunk]
             px, py, pz = p[:, 0:1], p[:, 1:2], p[:, 2:3]
@@ -144,9 +203,10 @@ class Coil:
         Legendre), analytic self term for a round wire with surface current
         (high-frequency limit). Pairs closer than `near` x segment length get
         `n_near` points. For coils with imposed distributed currents (birdcage,
-        filament bundles) this is 2W/I^2, the energy-equivalent inductance."""
+        filament bundles) this is 2W/I^2, the energy-equivalent inductance.
+        A tape segment counts as a tube of its equivalent radius (equiv_radius)."""
         a, b, I = self.starts, self.ends, self.currents
-        rad = self.wire_radius
+        rad = self.equiv_radius()
         N = len(a)
         lens = self.seg_lengths
         dirs = (b - a) / lens[:, None]
@@ -165,7 +225,8 @@ class Coil:
         for s in range(0, N, block):
             Pi = P[s:s + block]                      # (bi,n,3)
             diff = Pi[:, :, None, None, :] - P[None, None, :, :, :]
-            r = np.sqrt(np.einsum("abcdk,abcdk->abcd", diff, diff) + rad ** 2)
+            soft = rad[s:s + block, None, None, None] * rad[None, None, :, None]
+            r = np.sqrt(np.einsum("abcdk,abcdk->abcd", diff, diff) + soft)
             K = np.einsum("ab,abcd,cd->ac", W[s:s + block], 1.0 / r, W)
             M[s:s + block] = K
         # refine close pairs
@@ -178,7 +239,8 @@ class Coil:
         for s in range(0, len(ii), 256):
             i_, j_ = ii[s:s + 256], jj[s:s + 256]
             diff = Pn[i_][:, :, None, :] - Pn[j_][:, None, :, :]
-            r = np.sqrt(np.einsum("pabk,pabk->pab", diff, diff) + rad ** 2)
+            r = np.sqrt(np.einsum("pabk,pabk->pab", diff, diff)
+                        + (rad[i_] * rad[j_])[:, None, None])
             K = np.einsum("pa,pab,pb->p", Wn[i_], 1.0 / r, Wn[j_])
             M[i_, j_] = K
             M[j_, i_] = K
@@ -193,11 +255,23 @@ class Coil:
     def ac_resistance(self, freq: float, rho: float = 1.68e-8) -> float:
         """Skin-effect resistance (ohm) for a 1 A drive: R = sum_i R_i I_i^2.
         rho defaults to room-temperature copper. At 1-4 K the anomalous skin
-        effect limits the improvement to a few x; treat cold numbers as optimistic."""
+        effect limits the improvement to a few x; treat cold numbers as optimistic.
+        Tape: isolated thin strip with edge-crowded current,
+        R' = Rs / (pi^2 w) (pi + ln(4 pi w / t)), Rs = rho / min(delta, t/2),
+        about twice the naive both-faces-uniform Rs/(2w) at w/t ~ 100.
+        Neighbouring conductors change the crowding; treat it as an estimate."""
         delta = np.sqrt(rho / (np.pi * freq * MU0))          # m
         a = self.wire_radius * _MM
         area = np.where(delta < a, 2 * np.pi * a * delta, np.pi * a**2)
-        R_i = rho * self.seg_lengths * _MM / area
+        R_per_m = np.full(len(self.starts), rho / area)
+        tape = self.is_tape
+        if tape.any():
+            w = np.where(tape, self.tape_width, 1.0) * _MM
+            t = np.where(tape, self.tape_thickness, 1.0) * _MM
+            Rs = rho / np.minimum(delta, t / 2)
+            R_strip = Rs / (np.pi**2 * w) * (np.pi + np.log(4 * np.pi * w / t))
+            R_per_m = np.where(tape, R_strip, R_per_m)
+        R_i = R_per_m * self.seg_lengths * _MM
         return float(np.sum(R_i * self.currents**2))
 
     def q_estimate(self, freq: float, rho: float = 1.68e-8) -> float:
@@ -407,6 +481,41 @@ def birdcage(radius: float, length: float, n_rungs: int = 8, mode: int = 1,
     for p in parts[1:]:
         coil = coil + p
     return coil.translated(center).renamed(name)
+
+
+def as_tape(coil: Coil, width: float, thickness: float = 0.035, normal="radial",
+            on_edge: bool = False, axis_point=(0, 0, 0)) -> Coil:
+    """The same coil wound from flat tape (copper tape, foil, an etched strip)
+    `width` x `thickness` mm, centred on the original conductor path.
+
+    normal    the surface the tape lies flat on: "radial" for tape stuck to a
+              cylinder about the z axis through `axis_point` (saddles, birdcages),
+              or a plane normal (x, y, z) for a flat coil (spirals, loops).
+    on_edge   stand the tape on edge instead, its width along `normal`
+              (an edge-wound strip).
+    Tapes must not overlap: the width has to be less than the gap between
+    neighbouring conductors (turn pitch, rung spacing); nothing checks it here.
+    Currents are those of an isolated thin strip (edge-crowded); see Coil.filaments."""
+    if not (width > 0 and thickness > 0):
+        raise ValueError("tape width and thickness must be positive")
+    t = coil.ends - coil.starts
+    t = t / np.linalg.norm(t, axis=1, keepdims=True)
+    if isinstance(normal, str):
+        if normal != "radial":
+            raise ValueError(f"normal must be 'radial' or a vector, not {normal!r}")
+        mid = 0.5 * (coil.starts + coil.ends) - np.asarray(axis_point, float)
+        n = np.column_stack([mid[:, 0], mid[:, 1], np.zeros(len(mid))])
+    else:
+        n = np.broadcast_to(np.asarray(normal, float), t.shape)
+    d = n - np.einsum("ij,ij->i", n, t)[:, None] * t if on_edge else np.cross(n, t)
+    norm = np.linalg.norm(d, axis=1)
+    bad = norm < 1e-9 * np.maximum(1.0, np.linalg.norm(n, axis=1))
+    if bad.any():   # segment along the normal (e.g. a lead step): any perpendicular
+        e = np.eye(3)[np.argmin(np.abs(t[bad]), axis=1)]
+        d[bad] = np.cross(t[bad], e)
+        norm[bad] = np.linalg.norm(d[bad], axis=1)
+    return replace(coil, tape_width=width, tape_thickness=thickness,
+                   tape_dir=d / norm[:, None])
 
 
 # ----------------------------------------------------------------------------

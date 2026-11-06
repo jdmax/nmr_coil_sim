@@ -63,10 +63,10 @@ cs.plot_cell_surface(coil, cell)             # 3D surface map with the wires
 
 | File | What it is |
 |---|---|
-| `coilsim.py` | Library: Biot–Savart field of wire segments, partial-inductance L, skin-effect R and Q, coil builders (loop, rectangle, spiral, saddle, Alderman–Grant, birdcage), raster sampling metrics, field maps, plots |
+| `coilsim.py` | Library: Biot–Savart field of wire segments, partial-inductance L, skin-effect R and Q, coil builders (loop, rectangle, spiral, saddle, Alderman–Grant, birdcage), flat-tape conductors (`as_tape`), raster sampling metrics, field maps, plots |
 | `explorer_data.py` | Coil specs → field maps and circuit numbers for the explorer pages; preset coils; runs in Pyodide |
 | `deuteron_signals.py` | Two-zone deuteron signals and area vs. peak-fit polarization, with the DeuteronPeakFit lineshape |
-| `test_coilsim.py` | Validation against analytic results (loop and wire fields, loop and square inductance, saddle and birdcage uniformity) |
+| `test_coilsim.py` | Validation against analytic results (loop and wire fields, loop and square inductance, saddle and birdcage uniformity, thin-strip field and tape-ring inductance) |
 | `compare_coils.py`, `fig8_reproduction.py`, `deuteron_two_zone.py` | Studies that write figures to `figures/` |
 | `build_explorer.py`, `explorer_template.html` | Build the preset data and a self-contained single-file explorer |
 | `serve_web.py`, `web/` | GitHub Pages front end and its build/preview script |
@@ -110,6 +110,32 @@ copied in under its MIT licence.
 - **Using your own fit.** With lmfit installed,
   `peak_fit_polarization(..., use_deuteronpeakfit=True)` calls `deuteron_fit.fit()`
   directly.
+
+## Tape conductors
+
+Any coil can be wound from flat tape (copper tape, foil, an etched strip) instead of
+round wire:
+
+```python
+coil = cs.as_tape(cs.saddle(8.5, 50, 120), width=3.0, thickness=0.035)    # flat on the cylinder
+flat = cs.as_tape(cs.spiral(7, 13, 3), 1.5, normal=(0, 1, 0))             # flat in the spiral's plane (y normal)
+```
+
+In the web designer, set *Tape width* above 0 (every geometry except Alderman–Grant,
+which is already a sheet conductor). The tape lies flat on the coil's own surface:
+- on the cylinder for saddles and birdcages;
+- in the coil plane for flat coils.
+
+The designer refuses tapes that would overlap the next turn or rung.
+
+| Quantity | Tape model |
+|---|---|
+| Field | The tape is split across its width into filaments at Chebyshev nodes, each carrying an equal share. This reproduces the high-frequency current of an isolated thin strip, K(x) ∝ 1/√((w/2)² − x²), crowded to the edges. At the default 0.4 mm mean spacing (`cs.TAPE_SPACING`) the field is within 0.01 % of the exact strip result 1 mm from the tape and within 1 % at 0.5 mm. |
+| L | Each tape segment counts as a tube of radius w_eff/4, the equivalent radius of a thin strip, with Wheeler's thickness correction w_eff = w + (t/π)(1 + ln(4πw/t)). |
+| R, Q | Thin-strip loss R′ = R_s/(π²w)·(π + ln(4πw/t)), with R_s = ρ/min(δ, t/2). Edge crowding makes this about twice the naive both-faces estimate R_s/(2w). |
+
+The strip current is that of an isolated tape; close neighbours (tight turns,
+adjacent rungs) shift it. Treat L and Q for tightly packed tape as estimates.
 
 ## Model limits
 

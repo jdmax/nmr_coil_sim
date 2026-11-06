@@ -25,6 +25,12 @@ Coil types and their parameters (mm, degrees):
     alderman_grant  radius, length, strip_deg, filaments
     birdcage        radius, length, rungs
 All single-sided coils sit above the cell (+y); volume coils make their field along y.
+
+Every type except alderman_grant (already a sheet conductor) also takes
+    tape_width      mm; 0 = round wire, > 0 = flat tape of that width
+    tape_thickness  um (default 35, standard copper tape)
+Tape lies flat on the coil's own surface: in the coil plane for the flat coils, on the
+cylinder for saddles and birdcages.
 """
 from __future__ import annotations
 
@@ -62,13 +68,30 @@ TYPES = {
                      params=[("radius", "Radius", "mm", 8.5), ("length", "Length", "mm", 50.0),
                              ("rungs", "Rungs", "", 8)]),
 }
+TAPE_PARAMS = [("tape_width", "Tape width (0 = round wire)", "mm", 0.0),
+               ("tape_thickness", "Tape thickness", "µm", 35.0)]
+for _k, _t in TYPES.items():
+    if _k != "alderman_grant":
+        _t["params"] = _t["params"] + TAPE_PARAMS
+WIRE_GAP = 0.2   # mm, minimum clearance between neighbouring tapes
 
 
 def make_coil(spec: dict) -> cs.Coil:
     t = spec["type"]
     name = spec.get("name") or TYPES[t]["label"]
     up = (0, 0, 1)
+    tw = float(spec.get("tape_width") or 0.0) if t != "alderman_grant" else 0.0
+    tt = float(spec.get("tape_thickness") or 35.0) * 1e-3
+    if tw < 0:
+        raise ValueError("tape width can't be negative")
+    if tw > 0 and not tt > 0:
+        raise ValueError("tape thickness must be positive")
+    if tw > 0 and tt > tw / 4:
+        raise ValueError("the tape model is for thin tape: keep the thickness under a quarter of the width")
     if t == "spiral":
+        pitch = (spec["r_out"] - spec["r_in"]) / max(spec["turns"], 1e-9)
+        if tw > 0 and spec["turns"] > 1 and tw + WIRE_GAP > pitch:
+            raise ValueError(f"tape {tw:g} mm wide doesn't fit the {pitch:.2f} mm turn pitch")
         c = cs.spiral(spec["r_in"], spec["r_out"], spec["turns"], center=(0, spec["height"], 0),
                       normal=(0, 1, 0))
     elif t == "loop":
@@ -79,16 +102,34 @@ def make_coil(spec: dict) -> cs.Coil:
         c = cs.rect_loop(spec["width"], spec["height_dim"], center=(0, spec["standoff"], 0),
                          normal=(0, 1, 0), width_dir=(0, 0, 1))
     elif t == "saddle":
-        c = cs.saddle(spec["radius"], spec["length"], spec["arc_deg"], turns=int(spec.get("turns", 1)))
+        c = cs.saddle(spec["radius"], spec["length"], spec["arc_deg"], turns=int(spec.get("turns", 1)),
+                      turn_spacing=max(0.8, tw + WIRE_GAP))
         c = c.rotated(up, 90)
     elif t == "alderman_grant":
         c = cs.alderman_grant(spec["radius"], spec["length"], spec["strip_deg"],
                               n_filaments=int(spec.get("filaments", 5))).rotated(up, 90)
     elif t == "birdcage":
+        gap = 2 * spec["radius"] * np.sin(np.pi / int(spec["rungs"]))
+        if tw + WIRE_GAP > gap:
+            raise ValueError(f"tape {tw:g} mm wide doesn't fit between rungs {gap:.2f} mm apart")
         c = cs.birdcage(spec["radius"], spec["length"], int(spec["rungs"])).rotated(up, 90)
     else:
         raise ValueError(f"unknown coil type {t!r}")
+    if tw > 0:
+        planar = t in ("spiral", "loop", "rect_loop")
+        c = cs.as_tape(c, tw, tt, normal=(0, 1, 0) if planar else "radial")
     return c.renamed(name)
+
+
+def display_wires(coil: cs.Coil):
+    """Segments and |current| to draw: wires as they are, each tape as its two edges."""
+    tape = coil.is_tape
+    off = 0.5 * coil.tape_width[tape, None] * coil.tape_dir[tape]
+    a, b, cur = coil.starts, coil.ends, np.abs(coil.currents)
+    seg = np.vstack([np.hstack([a[~tape], b[~tape]]),
+                     np.hstack([a[tape] + off, b[tape] + off]),
+                     np.hstack([a[tape] - off, b[tape] - off])])
+    return seg, np.concatenate([cur[~tape], cur[tape], cur[tape]])
 
 
 def presets(diam: float, length: float = 50.0) -> list[dict]:
@@ -118,6 +159,10 @@ def presets(diam: float, length: float = 50.0) -> list[dict]:
              radius=on_cell, length=length, strip_deg=60.0, filaments=5,
              note=f"Alderman–Grant, 60° strips as 5 filaments, guard rings at the cell ends "
                   f"(r {on_cell:.1f} mm). A solid sleeve would block the microwaves."),
+        dict(key="sad_tape_c", group="Volume coils", type="saddle", name="Saddle 120°, copper tape, on cell",
+             radius=on_cell, length=length, arc_deg=120.0, turns=1, tape_width=3.0, tape_thickness=35.0,
+             note=f"Single-turn saddle of 3 mm × 35 µm copper tape, flat on the cell wall "
+                  f"(r {on_cell:.1f} mm). Edge-crowded strip current."),
         dict(key="bc8_c", group="Volume coils", type="birdcage", name="Birdcage 8-rung, on cell",
              radius=on_cell, length=length, rungs=8,
              note=f"8-rung birdcage in its uniform mode (r {on_cell:.1f} mm). Tuned by capacitors "
@@ -144,6 +189,7 @@ def compute_entry(spec: dict, cell: dict, quality: str = "full") -> dict:
     nr, nphi, nz = q["grid"]
     c3 = cs.Cell(radius=Rc, length=cell["length"], nr=nr, nphi=nphi, nz=nz)
     coil = make_coil(spec)
+    wire_seg, wire_cur = display_wires(coil)
     m = cs.zavg_map(coil, c3, pixel=q["pixel"], nz=q["nz"])
     pts, w = c3.grid()
     B = coil.field(pts)                       # one volume evaluation, shared below
@@ -166,8 +212,7 @@ def compute_entry(spec: dict, cell: dict, quality: str = "full") -> dict:
                  v=_b64f(m["v"]), w=_b64u8(np.round(m["w"] * 255))),
         surf=dict(nphi=len(s["phi"]), nz=len(s["z"]), ncap=len(s["r"]),
                   side=_b64f(s["side"]), lo=_b64f(s["cap_lo"]), hi=_b64f(s["cap_hi"])),
-        wires=dict(seg=_b64f(np.hstack([coil.starts, coil.ends])),
-                   cur=_b64f(np.abs(coil.currents))),
+        wires=dict(seg=_b64f(wire_seg), cur=_b64f(wire_cur)),
     )
     if spec["type"] == "birdcage":
         # Low-pass birdcage: one capacitor per rung with I_k = I_max sin(phi_k); equating
