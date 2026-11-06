@@ -17,10 +17,11 @@ needed here.
 Coil types and their parameters (mm, degrees):
     spiral          r_in, r_out, turns, height        flat pancake coil in a plane
                                                       `height` above the cell axis
-    loop            radius, height, pair (bool)       circular loop(s) above (and
-                                                      below, if pair) the cell
-    rect_loop       width, height_dim, standoff        flat rectangle in the plane
-                                                      y = standoff, long side on z
+    loop            radius, height, pair (bool),      circular loop(s) above (and
+                    turns                             below, if pair) the cell
+    rect_loop       width, height_dim, standoff,      flat rectangle in the plane
+                    turns                             y = standoff, long side on z
+Turns on loop and rect_loop are stacked 0.6 mm apart along the normal.
     saddle          radius, length, arc_deg, turns
     alderman_grant  radius, length, strip_deg, filaments
     birdcage        radius, length, rungs
@@ -54,10 +55,10 @@ TYPES = {
                            ("turns", "Turns", "", 3), ("height", "Plane height above axis", "mm", 16.0)]),
     "loop": dict(label="Circular loop(s) above the cell",
                  params=[("radius", "Loop radius", "mm", 10.0), ("height", "Plane height above axis", "mm", 16.0),
-                         ("pair", "Second loop below, in series", "bool", 0)]),
+                         ("pair", "Second loop below, in series", "bool", 0), ("turns", "Turns", "", 1)]),
     "rect_loop": dict(label="Flat rectangular loop above the cell",
                       params=[("width", "Length along beam", "mm", 40.0), ("height_dim", "Width across", "mm", 15.0),
-                              ("standoff", "Plane height above axis", "mm", 12.0)]),
+                              ("standoff", "Plane height above axis", "mm", 12.0), ("turns", "Turns", "", 1)]),
     "saddle": dict(label="Saddle (volume)",
                    params=[("radius", "Radius", "mm", 8.5), ("length", "Length", "mm", 50.0),
                            ("arc_deg", "Window arc", "deg", 120.0), ("turns", "Turns", "", 1)]),
@@ -73,7 +74,7 @@ TAPE_PARAMS = [("tape_width", "Tape width (0 = round wire)", "mm", 0.0),
 for _k, _t in TYPES.items():
     if _k != "alderman_grant":
         _t["params"] = _t["params"] + TAPE_PARAMS
-WIRE_GAP = 0.2   # mm, minimum clearance between neighbouring tapes
+WIRE_GAP = 0.2   # mm, minimum clearance between neighboring tapes
 
 
 def make_coil(spec: dict) -> cs.Coil:
@@ -88,6 +89,8 @@ def make_coil(spec: dict) -> cs.Coil:
         raise ValueError("tape thickness must be positive")
     if tw > 0 and tt > tw / 4:
         raise ValueError("the tape model is for thin tape: keep the thickness under a quarter of the width")
+    if tw > 0 and t in ("loop", "rect_loop") and int(spec.get("turns", 1)) > 1 and tt + WIRE_GAP > 0.6:
+        raise ValueError("stacked turns sit 0.6 mm apart: keep the tape thickness under 0.4 mm")
     if t == "spiral":
         pitch = (spec["r_out"] - spec["r_in"]) / max(spec["turns"], 1e-9)
         if tw > 0 and spec["turns"] > 1 and tw + WIRE_GAP > pitch:
@@ -95,12 +98,13 @@ def make_coil(spec: dict) -> cs.Coil:
         c = cs.spiral(spec["r_in"], spec["r_out"], spec["turns"], center=(0, spec["height"], 0),
                       normal=(0, 1, 0))
     elif t == "loop":
-        c = cs.circle_loop(spec["radius"], center=(0, spec["height"], 0), normal=(0, 1, 0))
+        n = int(spec.get("turns", 1))
+        c = cs.circle_loop(spec["radius"], center=(0, spec["height"], 0), normal=(0, 1, 0), turns=n)
         if spec.get("pair"):
-            c = c + cs.circle_loop(spec["radius"], center=(0, -spec["height"], 0), normal=(0, 1, 0))
+            c = c + cs.circle_loop(spec["radius"], center=(0, -spec["height"], 0), normal=(0, 1, 0), turns=n)
     elif t == "rect_loop":
         c = cs.rect_loop(spec["width"], spec["height_dim"], center=(0, spec["standoff"], 0),
-                         normal=(0, 1, 0), width_dir=(0, 0, 1))
+                         normal=(0, 1, 0), width_dir=(0, 0, 1), turns=int(spec.get("turns", 1)))
     elif t == "saddle":
         c = cs.saddle(spec["radius"], spec["length"], spec["arc_deg"], turns=int(spec.get("turns", 1)),
                       turn_spacing=max(0.8, tw + WIRE_GAP))
@@ -149,6 +153,14 @@ def presets(diam: float, length: float = 50.0) -> list[dict]:
         dict(key="pair", group="Cheap upgrade", type="loop", name="Loop pair, above + below",
              radius=10.0, height=h, pair=1,
              note="Two single loops, above and below the cell, in series so their fields add."),
+        dict(key="rect_in", group="Embedded", type="rect_loop", name="Rectangle 6 × 20 mm, in cell",
+             width=20.0, height_dim=6.0, standoff=0.0,
+             note="Flat single-turn rectangle in the cell's mid-plane (y = 0), 20 mm along the beam "
+                  "and 6 mm across, embedded in the material at the center of the cell."),
+        dict(key="rect3_in", group="Embedded", type="rect_loop", name="Rectangle 6 × 20 mm, 3 turns, in cell",
+             width=20.0, height_dim=6.0, standoff=0.0, turns=3,
+             note="The same embedded rectangle with 3 turns stacked 0.6 mm apart across the mid-plane. "
+                  "Turns raise L about as N² at nearly the same η, so more of the tank's energy sits in the material."),
         dict(key="sad_c", group="Volume coils", type="saddle", name="Saddle 120°, on cell",
              radius=on_cell, length=length, arc_deg=120.0, turns=1,
              note=f"Single-turn saddle, 120° windows, on the cell wall (r {on_cell:.1f} mm)."),

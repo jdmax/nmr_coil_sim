@@ -101,7 +101,7 @@ coilSel.addEventListener("change", () => { st.coil = +coilSel.value; build3d(); 
 rasterR.addEventListener("input", () => { st.rd = +rasterR.value; updateAll(); });
 offX.addEventListener("change", () => { st.ox = +offX.value || 0; updateAll(); });
 offY.addEventListener("change", () => { st.oy = +offY.value || 0; updateAll(); });
-document.getElementById("btnCentre").addEventListener("click", () => { st.ox = 0; st.oy = 0; updateAll(); });
+document.getElementById("btnCenter").addEventListener("click", () => { st.ox = 0; st.oy = 0; updateAll(); });
 document.getElementById("btnFig8").addEventListener("click", () => { st.ox = 0; st.oy = -1; updateAll(); });
 
 /* ---------- 2D map ---------- */
@@ -226,7 +226,9 @@ function build3d() {
   let rmax = Math.max(R, L / 2);
   for (let k = 0; k < cur.length; k++) {
     const a = [seg[k * 6], seg[k * 6 + 1], seg[k * 6 + 2]], b = [seg[k * 6 + 3], seg[k * 6 + 4], seg[k * 6 + 5]];
-    lines.push({ a, b, w: 1 + 1.8 * Math.min(1, cur[k]) });
+    // wires inside the cell are hidden by its surface; draw3d shows them dashed on top
+    const inside = [a, b].every(p => Math.hypot(p[0], p[1]) < R && Math.abs(p[2]) <= L / 2);
+    lines.push({ a, b, w: 1 + 1.8 * Math.min(1, cur[k]), inside });
     rmax = Math.max(rmax, Math.hypot(...a), Math.hypot(...b));
   }
   geo3 = { quads, lines, rmax };
@@ -252,7 +254,7 @@ function draw3d() {
   }
   for (const l of geo3.lines) {
     const a = rot(l.a), b = rot(l.b);
-    items.push({ t: 1, d: (a[2] + b[2]) / 2 + 0.3, a: prj(a), b: prj(b), w: l.w });
+    items.push({ t: 1, d: l.inside ? Infinity : (a[2] + b[2]) / 2 + 0.3, a: prj(a), b: prj(b), w: l.w, inside: l.inside });
   }
   // raster footprint on both end caps
   const C = cell(), rr = st.rd / 2;
@@ -269,8 +271,10 @@ function draw3d() {
       ctx.fillStyle = c; ctx.strokeStyle = c; ctx.lineWidth = 0.6;
       ctx.beginPath(); ctx.moveTo(...it.pts[0]); for (let k = 1; k < 4; k++) ctx.lineTo(...it.pts[k]); ctx.closePath(); ctx.fill(); ctx.stroke();
     } else if (it.t === 1) {
-      ctx.strokeStyle = copper; ctx.lineWidth = it.w; ctx.lineCap = "round";
+      ctx.strokeStyle = copper; ctx.lineWidth = it.w; ctx.lineCap = it.inside ? "butt" : "round";
+      ctx.setLineDash(it.inside ? [4, 3] : []);
       ctx.beginPath(); ctx.moveTo(...it.a); ctx.lineTo(...it.b); ctx.stroke();
+      ctx.setLineDash([]);
     } else {
       ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1.6;
       ctx.beginPath(); ctx.moveTo(...it.a); ctx.lineTo(...it.b); ctx.stroke();
@@ -319,15 +323,18 @@ function buildTables() {
   const tb = document.getElementById("tuneBody"); tb.innerHTML = "";
   cell().coils.forEach((c, i) => {
     const tr = document.createElement("tr"); tr.dataset.i = i;
-    tr.innerHTML = `<td>${c.name}<span class="group">${c.group}</span></td>
+    const rm = c.group === "Your coils" ? ` <button class="rm" type="button" title="Remove ${c.name}" aria-label="Remove ${c.name}">×</button>` : "";
+    tr.innerHTML = `<td>${c.name}${rm}<span class="group">${c.group}</span></td>
       <td class="num">${c.L_nH.toFixed(0)}</td>
       <td class="num">${c.rungs ? c.C_rung_p_pF.toFixed(1) + `<span class="group">each of ${c.rungs} rungs</span>` : c.C_p_pF.toFixed(1)}</td><td>${chipP(c)}</td>
       <td class="num">${c.rungs ? c.C_rung_d_pF.toFixed(0) + `<span class="group">each of ${c.rungs} rungs</span>` : c.C_d_pF.toFixed(0)}</td><td>${chipD(c)}</td>
       <td class="num">${(100 * c.eta).toFixed(1)}</td>
       <td class="num">${c.rungs ? "–" : c.len_lambda.toFixed(2)}</td>`;
     tr.addEventListener("click", () => selectCoil(i));
+    if (rm) tr.querySelector(".rm").addEventListener("click", e => { e.stopPropagation(); removeCoils([c]); });
     tb.appendChild(tr);
   });
+  buildSignalRows();
   const cb = document.getElementById("cmpBody"); cb.innerHTML = "";
   cell().coils.forEach((c, i) => {
     const tr = document.createElement("tr"); tr.dataset.i = i;
@@ -458,6 +465,65 @@ function updateDeut(f) {
   drawDeut(f, r);
 }
 
+/* ---------- cw-NMR signal size ---------- */
+// Series Q-meter at resonance (Maxwell et al., Fig. 2), driven at constant current through R_CC. The detector sees
+// Re dZ = w L 4 pi eta chi'', i.e. 4 pi eta Q_c chi'' of the Q-curve height; the table compares eta * Q_c.
+// Warm tank: C and R in the Q-meter, the coil at the end of an n·λ/2 cable. To first order in its loss al the line
+// presents Z + al (Z0 - Z^2/Z0), adding al (Z0 + X^2/Z0) in series, X = w (L + L_lead). Cold tank: C and R beside
+// the coil, no resonant cable inside the tank. Leads store field outside the material (eta -> eta L / (L + L_lead))
+// and have resistance at the coil's Q.
+const Z0 = 50, NUC = ["d", "p"], REF = { d: "rgc_d", p: "rgc_p" };
+const chan = { d: { cold: true, loss: 0.15, r: 1, lead: 0 }, p: { cold: false, loss: 0.4, r: 0, lead: 0 } };
+function tank(c, n) {
+  const k = chan[n], w = 2 * Math.PI * DATA.freqs[n] * 1e6, L = c.L_nH * 1e-9, Lt = L + k.lead * 1e-9, X = w * Lt;
+  const R = X / (n === "p" ? c.Q_p : c.Q_d) + (k.cold ? 0 : k.loss / 8.686 * (Z0 + X * X / Z0)) + k.r;   // dB -> Np
+  const Q = X / R;
+  return { Q, s: c.eta * L / Lt * Q, C: 1e12 / (w * X) * (c.rungs ? c.rungs / 2 : 1) };
+}
+const fx = x => !Number.isFinite(x) ? "–" : x >= 10 ? x.toFixed(0) : x >= 1 ? x.toFixed(1) : x.toFixed(2);
+function buildSignalRows() {
+  for (const n of NUC) document.getElementById(`sigF${n}`).textContent = DATA.freqs[n].toFixed(1);
+  const sb = document.getElementById("sigBody"); sb.innerHTML = "";
+  cell().coils.forEach((c, i) => {
+    const tr = document.createElement("tr"); tr.dataset.i = i;
+    tr.innerHTML = `<td>${c.name}<span class="group">${c.group}</span></td>` +
+      NUC.map(n => `<td class="num q${n}"></td><td class="num c${n}"></td><td class="num t${n}"></td><td class="num r${n}"></td>`).join("");
+    tr.addEventListener("click", () => selectCoil(i));
+    sb.appendChild(tr);
+  });
+}
+function updateSignals(r) {
+  const coils = cell().coils, ref = {};
+  for (const n of NUC) {
+    const c = coils.find(e => e.key === REF[n]); if (!c) continue;
+    const s = tank(c, n).s;
+    ref[n] = { t: s, r: s * fraction(c.map, r, st.ox, st.oy) };
+  }
+  const rel = NUC.every(n => ref[n]);
+  [...document.querySelectorAll("#sigBody tr")].forEach(tr => {
+    const c = coils[+tr.dataset.i], fk = fraction(c.map, r, st.ox, st.oy);
+    for (const n of NUC) {
+      const t = tank(c, n);
+      tr.querySelector(`.q${n}`).textContent = t.Q.toFixed(1);
+      tr.querySelector(`.c${n}`).innerHTML = (t.C >= 10 ? t.C.toFixed(0) : t.C.toFixed(1)) + (c.rungs ? `<span class="group">per rung</span>` : "");
+      tr.querySelector(`.t${n}`).textContent = rel ? fx(t.s / ref[n].t) + "×" : fx(t.s);
+      tr.querySelector(`.r${n}`).textContent = rel ? fx(t.s * fk / ref[n].r) + "×" : fx(t.s * fk);
+    }
+    tr.classList.toggle("sel", +tr.dataset.i === st.coil);
+  });
+  document.getElementById("sigRef").textContent = rel
+    ? "Signals relative to the RGC deuteron spiral and RGC proton loop on this cell, at this raster."
+    : "No RGC coil on this cell size: signals are η·Q_c, per unit 4πχ″, as a fraction of the Q-curve height.";
+}
+// deuteron: cold tank (Fig. 2 right); proton: warm tank with an n·λ/2 cable (Fig. 2 left), as in RGC
+for (const [id, n, key] of [["sigRd", "d", "r"], ["sigHd", "d", "lead"], ["sigLp", "p", "loss"], ["sigRp", "p", "r"], ["sigHp", "p", "lead"]]) {
+  const e = document.getElementById(id); e.value = chan[n][key];
+  e.addEventListener("input", () => {
+    const v = +e.value; if (e.value === "" || !Number.isFinite(v) || v < 0) return;
+    chan[n][key] = v; updateSignals(st.rd / 2);
+  });
+}
+
 /* ---------- update ---------- */
 function ceilingFrac() {
   // area of raster ∩ cell / area of cell, from the uniform weight map of any coil
@@ -496,6 +562,7 @@ function updateAll() {
     tr.classList.toggle("sel", k === st.coil);
   });
   [...document.querySelectorAll("#tuneBody tr")].forEach(tr => tr.classList.toggle("sel", +tr.dataset.i === st.coil));
+  updateSignals(r);
   drawMap(); draw3d(); updateDeut(f);
 }
 
@@ -507,7 +574,7 @@ const dType = document.getElementById("dType"), dName = document.getElementById(
 const dCellD = document.getElementById("dCellD"), dCellL = document.getElementById("dCellL");
 const dParams = document.getElementById("dParams");
 const btnCompute = document.getElementById("btnCompute"), btnLoadSel = document.getElementById("btnLoadSel");
-const btnRemove = document.getElementById("btnRemove"), computeMsg = document.getElementById("computeMsg");
+const btnRemove = document.getElementById("btnRemove"), btnRemoveAll = document.getElementById("btnRemoveAll"), computeMsg = document.getElementById("computeMsg");
 const pyDot = document.getElementById("pyDot"), pyText = document.getElementById("pyText");
 let pyReady = false, busy = false, jobId = 0;
 const pending = new Map();
@@ -553,6 +620,7 @@ function loadFromCoil(c) {
 btnLoadSel.addEventListener("click", () => loadFromCoil(coil()));
 function syncDesignerButtons() {
   btnRemove.hidden = !coil() || coil().group !== "Your coils";
+  btnRemoveAll.hidden = !userCoils().length;
   btnCompute.disabled = !pyReady || busy;
 }
 
@@ -636,12 +704,26 @@ btnCompute.addEventListener("click", async () => {
     busy = false; pyDot.className = pyReady ? "dot ok" : "dot err"; syncDesignerButtons();
   }
 });
+function userCoils() { return DATA.cells.flatMap(c => c.coils.filter(e => e.group === "Your coils")); }
+// Drop the given user coils (and any cell left empty), keeping the current selection where it survives.
+function removeCoils(gone) {
+  if (!gone.length) return;
+  const curCell = cell(), curCoil = coil();
+  for (const c of DATA.cells) c.coils = c.coils.filter(e => !gone.includes(e));
+  DATA.cells = DATA.cells.filter(c => c.coils.length);
+  saveUser();
+  st.cell = Math.max(0, DATA.cells.indexOf(curCell));
+  st.coil = Math.max(0, cell().coils.indexOf(curCoil));
+  if (cell() !== curCell) { st.ox = 0; st.oy = 0; st.rd = Math.min(st.rd, cell().diam); }
+  buildControls(); build3d(); updateAll();
+  computeMsg.textContent = gone.length === 1 ? `Removed ${gone[0].name}.` : `Removed ${gone.length} coils.`;
+}
 btnRemove.addEventListener("click", () => {
-  const c = coil(); if (!c || c.group !== "Your coils") return;
-  const list = cell().coils; list.splice(st.coil, 1); saveUser();
-  if (!list.length) { DATA.cells.splice(st.cell, 1); st.cell = 0; }
-  st.coil = 0; buildControls(); build3d(); updateAll();
-  computeMsg.textContent = `Removed ${c.name}.`;
+  const c = coil(); if (c && c.group === "Your coils") removeCoils([c]);
+});
+btnRemoveAll.addEventListener("click", () => {
+  const all = userCoils();
+  if (all.length && confirm(`Remove all ${all.length} of your coils from this browser?`)) removeCoils(all);
 });
 
 loadUser();

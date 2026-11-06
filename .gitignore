@@ -2,4 +2,3 @@ __pycache__/
 *.pyc
 _site/
 .ipynb_checkpoints/
-explorer.html

@@ -6,7 +6,7 @@
 # ASSUMED GEOMETRY -- edit these to match the real drawings:
 #   * cell: 15 mm diameter, 50 mm long (CLAS Note Sec. 2.2)
 #   * "RGC-style external loop": a 40 x 15 mm flat loop, 12 mm off-axis on +x.
-#     This is a placeholder, not the as-built coil. It gives ~54% centred /
+#     This is a placeholder, not the as-built coil. It gives ~54% centered /
 #     ~41% at a 1 mm offset vs. the Note's ~60% / 40%.
 #   * volume coils sit on the cell wall (r = 8.5 mm) or on the bath (r = 12 mm)
 
@@ -51,7 +51,7 @@ with open("figures/coil_report.csv", "w") as fh:
     for r in reports:
         fh.write(",".join(str(r[k]) for k in keys) + "\n")
 
-# %% Mid-plane B_T^2 maps (normalised to the cell mean)
+# %% Mid-plane B_T^2 maps (normalized to the cell mean)
 fig, axes = plt.subplots(2, 3, figsize=(12, 8), constrained_layout=True)
 for ax, c in zip(axes.flat, coils):
     im = cs.plot_midplane(c, cell, RASTER, ax=ax, extent=13.5)
@@ -86,7 +86,7 @@ for c, col in zip(coils, COLORS):
     bt = np.hypot(B[:, 0], B[:, 1])
     ax.plot(z, bt / bt[50], color=col, lw=2, label=c.name)
 ax.set_xlabel("z along beam (mm), on axis")
-ax.set_ylabel("B_T / B_T(centre)")
+ax.set_ylabel("B_T / B_T(center)")
 ax.legend(fontsize=8, frameon=False)
 ax.spines[["top", "right"]].set_visible(False)
 ax.grid(alpha=0.25)

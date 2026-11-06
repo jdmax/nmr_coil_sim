@@ -10,6 +10,10 @@ strongly (CLAS Note, Sec. 3.3).
 Everything is plain NumPy. The same code runs offline and, through Pyodide, in the
 browser front end.
 
+**Try it in the browser:**
+- [Coil explorer and designer](https://jdmax.github.io/nmr_coil_sim/): preset coils, plus new coils computed in Pyodide
+- [Coil Raster Explorer, single file](https://jdmax.github.io/nmr_coil_sim/explorer.html): preset coils only, works offline
+
 ## Web app
 
 `web/` is a static site for GitHub Pages:
@@ -19,7 +23,15 @@ browser front end.
 
 You can drag the beam raster, rotate a 3D view of B_T² on the cell surface, set
 core and shell polarizations to see the deuteron signal with its area and peak-fit
-results, and compare inductance and tuning capacitance across coils.
+results, and compare cw-NMR signal size, inductance and tuning capacitance across
+coils.
+
+**Two pages.** Both are served from the same site:
+
+| Address | What it is |
+|---|---|
+| [jdmax.github.io/nmr_coil_sim/](https://jdmax.github.io/nmr_coil_sim/) | Full explorer, with the coil designer running in Pyodide |
+| [jdmax.github.io/nmr_coil_sim/explorer.html](https://jdmax.github.io/nmr_coil_sim/explorer.html) | Coil Raster Explorer as one self-contained file: preset coils only, no Python, works offline; you can also download it and open it locally |
 
 **Publishing.** In the repository settings, under *Pages → Build and deployment*,
 set *Source* to **GitHub Actions**. The workflow in `.github/workflows/pages.yml`
@@ -45,7 +57,7 @@ python test_coilsim.py        # checks against closed-form results; prints ALL P
 python compare_coils.py       # coil comparison on the 15 mm cell -> figures/
 python fig8_reproduction.py   # CLAS Note Fig. 8 reproduction -> figures/
 python deuteron_two_zone.py   # area vs. peak-fit deuteron polarization -> figures/
-python build_explorer.py      # presets at full resolution -> web/data/default.json, explorer.html
+python build_explorer.py      # presets at full resolution -> web/data/default.json, web/explorer.html
 ```
 
 ```python
@@ -68,7 +80,7 @@ cs.plot_cell_surface(coil, cell)             # 3D surface map with the wires
 | `deuteron_signals.py` | Two-zone deuteron signals and area vs. peak-fit polarization, with the DeuteronPeakFit lineshape |
 | `test_coilsim.py` | Validation against analytic results (loop and wire fields, loop and square inductance, saddle and birdcage uniformity, thin-strip field and tape-ring inductance) |
 | `compare_coils.py`, `fig8_reproduction.py`, `deuteron_two_zone.py` | Studies that write figures to `figures/` |
-| `build_explorer.py`, `explorer_template.html` | Build the preset data and a self-contained single-file explorer |
+| `build_explorer.py`, `explorer_template.html` | Build the preset data (`web/data/default.json`) and the single-file explorer (`web/explorer.html`); `--from-json` rebuilds only the page |
 | `serve_web.py`, `web/` | GitHub Pages front end and its build/preview script |
 
 ## Figures of merit
@@ -76,9 +88,10 @@ cs.plot_cell_surface(coil, cell)             # 3D surface map with the wires
 | Quantity | Meaning |
 |---|---|
 | Raster fraction f | CLAS Note Eq. 3: ∫raster B_T² dV / ∫cell B_T² dV |
-| Uniform-coil ceiling | The raster's share of the cell area, (R_b/R_t)² for a centred raster |
+| Uniform-coil ceiling | The raster's share of the cell area, (R_b/R_t)² for a centered raster |
 | Worst 1 mm shift | Largest change in f when the raster moves 1 mm in any direction |
-| η | Transverse filling factor ∫cell B_T² dV / (μ0 L); signal ∝ η·Q |
+| η | Transverse filling factor ∫cell B_T² dV / (μ0 L); signal ∝ η·Q_c |
+| Q_c, signal | Series Q-meter tank at constant current: the detector sees ωL·4πη·χ″, or 4πη·Q_c·χ″ of the Q-curve height. Q_c = X / R_total with X = ω(L + L_lead); R_total sums coil and lead resistance, the tank resistor R and, for a warm tank (C in the Q-meter, nλ/2 cable to the coil), the cable term αℓ (Z0 + X²/Z0). A cold tank (C and R beside the coil) has no cable term. As in RGC, the explorer uses a cold tank for deuterons and a warm tank for protons. Leads dilute η to η·L/(L + L_lead). The explorer shows η·Q_c relative to the RGC coil, for the whole cell and for the rastered material alone (× f); R and lead inductance for each channel, and the proton cable loss, are set on the page |
 | L, C | Inductance and the series capacitance that tunes it. For birdcages: capacitance per rung of a low-pass birdcage, C_rung = (N/2)/(ω²L) |
 
 ## The RGC coil model
@@ -86,12 +99,12 @@ cs.plot_cell_surface(coil, cell)             # 3D surface map with the wires
 CLAS Note Fig. 8 shows a flat circular coil above the cell; the Fig. 6 photo shows
 a 3-turn pancake spiral. `cs.spiral(7, 13, 3, center=(0, 16, 0), normal=(0, 1, 0))`
 puts a spiral with r = 7–13 mm in a plane 16 mm above the axis. It reproduces the
-Note's fractions: 0.558 centred and 0.436 at 1 mm away, against 0.56 and 0.43 in the
+Note's fractions: 0.558 centered and 0.436 at 1 mm away, against 0.56 and 0.43 in the
 Note. These dimensions are a fit, not a measurement; replace them with the as-built
 values.
 
-Its modelled 257 nH needs 93 pF at 32.6 MHz, a little above the RGC cold board's
-40–82 pF range. The leads to the board, which are not modelled, account for the
+Its modeled 257 nH needs 93 pF at 32.6 MHz, a little above the RGC cold board's
+40–82 pF range. The leads to the board, which are not modeled, account for the
 difference.
 
 ## Deuteron signals with non-uniform polarization
@@ -99,7 +112,7 @@ difference.
 `deuteron_signals.compare(P_in, P_out, f)` gives the signal a coil with raster
 fraction f sees: f·shape(P_in) + (1−f)·shape(P_out), using the absorption-only
 Dulya lineshape from [DeuteronPeakFit](https://github.com/jdmax/DeuteronPeakFit),
-copied in under its MIT licence.
+copied in under its MIT license.
 
 - **Area method.** Area is exactly linear in P, so with a calibration constant taken
   on uniformly polarized material it returns the weighted mean.
@@ -134,7 +147,7 @@ The designer refuses tapes that would overlap the next turn or rung.
 | L | Each tape segment counts as a tube of radius w_eff/4, the equivalent radius of a thin strip, with Wheeler's thickness correction w_eff = w + (t/π)(1 + ln(4πw/t)). |
 | R, Q | Thin-strip loss R′ = R_s/(π²w)·(π + ln(4πw/t)), with R_s = ρ/min(δ, t/2). Edge crowding makes this about twice the naive both-faces estimate R_s/(2w). |
 
-The strip current is that of an isolated tape; close neighbours (tight turns,
+The strip current is that of an isolated tape; close neighbors (tight turns,
 adjacent rungs) shift it. Treat L and Q for tightly packed tape as estimates.
 
 ## Model limits
@@ -146,3 +159,12 @@ adjacent rungs) shift it. Treat L and Q for tightly packed tape as estimates.
 - Coil Q uses room-temperature copper, for comparing coils only.
 - Fields are valid while unbroken conductor runs stay below about λ/10; the
   `len/lam` column flags runs that don't.
+
+## Author
+
+[J. Maxwell](https://orcid.org/0000-0003-2710-4646) ([@jdmax](https://github.com/jdmax))
+
+## License
+
+MIT; see [LICENSE](LICENSE). The deuteron lineshape in `deuteron_signals.py` comes from
+[DeuteronPeakFit](https://github.com/jdmax/DeuteronPeakFit), also under the MIT license.
