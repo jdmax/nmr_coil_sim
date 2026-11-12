@@ -222,7 +222,7 @@
     <p>The NMR signal sits on top of the Q-curve, the Q-meter's response to the sweep with no polarization. The polarization comes
       from the signal after that background is subtracted, so a deep or tilted Q-curve under a small signal makes the measurement
       harder. Here the selected coil is put in the series Q-meter circuit of
-      <a href="https://github.com/jdmax/QMeterSim">QMeterSim</a> (after Court and Houlden): 1 V RF through R<sub>CC</sub> = 681 Ω,
+      <a href="https://jdmax.github.io/QMeterSim">QMeterSim</a> (after Court and Houlden): 1 V RF through R<sub>CC</sub> = 681 Ω,
       a 50 Ω detector, and either a cold tank (C and R beside the coil) or a warm tank with an n·λ/2 cable between C and the
       coil. The tune is good in each case: C cancels the tank reactance at the Larmor frequency, and the detector phase centers
       the Q-curve's peak there, taking out the tilt the cable's loss adds. As in QMeterSim, the output is −Re: the Q-curve
@@ -317,7 +317,7 @@
         and, for a warm tank, the nλ/2 cable loss to first order. Birdcages count as one lumped inductor; tuned by their
         own capacitors and matched to the line, they would lose less. The proton numbers also assume the coil is short
         compared with λ (see "Wire run / λ"). C includes the leads; for birdcages it is per rung.</li>
-      <li>The Q-curve section ports the circuit of <a href="https://github.com/jdmax/QMeterSim">QMeterSim</a> with supply,
+      <li>The Q-curve section ports the circuit of <a href="https://jdmax.github.io/QMeterSim">QMeterSim</a> with supply,
         signal and reference lines of zero length, no stray capacitance, and the coil cable as a 50 Ω lossy line
         (velocity factor 0.78). The cold tank has no cable inside the tank. The signal enters as absorption only,
         Z<sub>L</sub> = jωL(1 + ηχ) with χ = −jχ″ (SI). χ″ is normalized by ∫χ″ df = (π/2) f<sub>0</sub>χ<sub>0</sub>, with

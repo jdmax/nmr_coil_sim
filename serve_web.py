@@ -9,6 +9,7 @@ _site/py/ so the browser runs exactly the code in this repository.
 """
 import argparse
 import functools
+import hashlib
 import http.server
 import shutil
 from pathlib import Path
@@ -25,6 +26,14 @@ def build() -> Path:
     (SITE / "py").mkdir()
     for name in PY_MODULES:
         shutil.copy2(ROOT / name, SITE / "py" / name)
+    # Cache-bust: GitHub Pages serves with max-age=600, so a browser can pair a new index.html with a stale
+    # app.js or style.css. Tag their URLs with a content hash so any change gets a fresh URL.
+    page = SITE / "index.html"
+    html = page.read_text(encoding="utf-8")
+    for name in ("app.js", "style.css"):
+        tag = hashlib.sha256((SITE / name).read_bytes()).hexdigest()[:10]
+        html = html.replace(f'"{name}"', f'"{name}?v={tag}"')
+    page.write_text(html, encoding="utf-8")
     (SITE / ".nojekyll").touch()
     if not (SITE / "data" / "default.json").exists():
         raise SystemExit("web/data/default.json is missing: run python build_explorer.py first")

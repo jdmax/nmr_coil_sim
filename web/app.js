@@ -528,7 +528,7 @@ for (const [id, n, key] of [["sigRd", "d", "r"], ["sigHd", "d", "lead"], ["sigLp
 }
 
 /* ---------- Q-curve with signal (QMeterSim circuit) ---------- */
-// Series Q-meter of github.com/jdmax/QMeterSim (after Court & Houlden, NIM A 527 (2004) 253): source u = 1 V through
+// Series Q-meter of jdmax.github.io/QMeterSim (after Court & Houlden, NIM A 527 (2004) 253): source u = 1 V through
 // R_CC to the tank leg R + C + [n·λ/2 cable] + coil, a 50 Ω detector, supply/signal/reference lines of zero length.
 // The coil cable is a 50 Ω lossy line, Z_in = Z0 (Z_L + Z0 tanh γℓ) / (Z0 + Z_L tanh γℓ). The polarization enters as
 // absorption, Z_L = jωL(1 + ηχ), χ = -jχ''.
