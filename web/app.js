@@ -523,9 +523,167 @@ for (const [id, n, key] of [["sigRd", "d", "r"], ["sigHd", "d", "lead"], ["sigLp
   const e = document.getElementById(id); e.value = chan[n][key];
   e.addEventListener("input", () => {
     const v = +e.value; if (e.value === "" || !Number.isFinite(v) || v < 0) return;
-    chan[n][key] = v; updateSignals(st.rd / 2);
+    chan[n][key] = v; updateSignals(st.rd / 2); updateQC();
   });
 }
+
+/* ---------- Q-curve with signal (QMeterSim circuit) ---------- */
+// Series Q-meter of github.com/jdmax/QMeterSim (after Court & Houlden, NIM A 527 (2004) 253): source u = 1 V through
+// R_CC to the tank leg R + C + [n·λ/2 cable] + coil, a 50 Ω detector, supply/signal/reference lines of zero length.
+// The coil cable is a 50 Ω lossy line, Z_in = Z0 (Z_L + Z0 tanh γℓ) / (Z0 + Z_L tanh γℓ). The polarization enters as
+// absorption, Z_L = jωL(1 + ηχ), χ = -jχ''.
+const cx = (re, im = 0) => ({ re, im });
+const cadd = (a, b) => cx(a.re + b.re, a.im + b.im);
+const cmul = (a, b) => cx(a.re * b.re - a.im * b.im, a.re * b.im + a.im * b.re);
+const cdiv = (a, b) => { const d = b.re * b.re + b.im * b.im; return cx((a.re * b.re + a.im * b.im) / d, (a.im * b.re - a.re * b.im) / d); };
+const ctanh = z => { const d = Math.cosh(2 * z.re) + Math.cos(2 * z.im); return cx(Math.sinh(2 * z.re) / d, Math.sin(2 * z.im) / d); };
+const QM = { rcc: 681, ramp: 50, vf: 0.78, c: 2.998e8, Tte: 1.0, dnp: { p: 0.90, d: 0.40 }, pf: 0.6 };
+QM.n = 0.867 / 17.031 * 6.022e23 * 3 * 1e6 * QM.pf;          // nuclei per m^3 of cell, NH3/ND3 beads
+QM.mu = { p: 1.41061e-26, d: 4.33073e-27 };                    // J/T
+QM.gam = { p: 42.5775, d: 6.53590 };                           // MHz/T
+const qc = { nuc: "p", cab: 1, pol: "te" };
+const lambda2 = f0 => QM.vf * QM.c / (2 * f0 * 1e6);           // m
+// sweep and normalized lineshape h(f), ∫h df = 1 (f in MHz)
+const QSW = {};
+{
+  const f0 = DATA.freqs.p, n = 401, freq = new Float64Array(n), h = new Float64Array(n), wd = 0.06;
+  const g = u => 1 / (1 + 4 * Math.pow(Math.abs(u), 2.35));   // Hill & Hill, as in QMeterSim
+  let a = 0; const du = 0.002; for (let u = du / 2; u < 2000; u += du) a += g(u) * du; a *= 2 * wd;
+  for (let i = 0; i < n; i++) { freq[i] = f0 - 0.4 + 0.8 * i / (n - 1); h[i] = g((freq[i] - f0) / wd) / a; }
+  QSW.p = { f0, freq, h: () => h };
+  // deuteron: Dulya shape on the grid of the deuteron panel, area-normalized with the same calibration constant
+  QSW.d = { f0: DS.wL, freq: DS.freq, h: P => { const s = shapeR(r_of_P(P)); return s.map(v => CC * v / P); } };
+}
+function polTE(n) {
+  const x = 6.62607e-34 * QSW[n].f0 * 1e6 / (1.380649e-23 * QM.Tte), t = Math.tanh(x / 2);
+  return n === "p" ? t : 4 * t / (3 + t * t);
+}
+function qmeter(c, n, ncab, P) {
+  const k = chan[n], S = QSW[n], f0 = S.f0, w0 = 2 * Math.PI * f0 * 1e6;
+  const L = c.L_nH * 1e-9, Lt = L + k.lead * 1e-9, eta = c.eta * L / Lt;
+  const rcoil = w0 * Lt / (n === "p" ? c.Q_p : c.Q_d);
+  const len = ncab * lambda2(f0);
+  const alpha = chan.p.loss / 8.686 / lambda2(DATA.freqs.p) * Math.sqrt(f0 / DATA.freqs.p);   // Np/m
+  const B0 = f0 / QM.gam[n], chi0 = 4e-7 * Math.PI * QM.n * QM.mu[n] * P / B0;
+  const h = S.h(P), chipp = Array.from(h, v => Math.PI / 2 * f0 * chi0 * v);
+  const zcoil = (w, chi) => {
+    const zl = cx(rcoil + w * Lt * eta * chi, w * Lt);
+    if (!len) return zl;
+    const t = ctanh(cx(alpha * len, w / (QM.vf * QM.c) * len)), z0 = cx(Z0);
+    return cmul(z0, cdiv(cadd(zl, cmul(z0, t)), cadd(z0, cmul(zl, t))));
+  };
+  const zcc = cx(QM.rcc + 25), vref = QM.ramp / (QM.ramp + 25);  // 50 Ω source || 50 Ω to ground
+  const vmix = (Cap, f, chi) => {
+    const w = 2 * Math.PI * f * 1e6;
+    const zt = cadd(cx(k.r, -1 / (w * Cap)), zcoil(w, chi)), s = cadd(zt, zcc);
+    const veq = cdiv(zt, s), zeq = cdiv(cmul(zt, zcc), s);
+    const v = cmul(veq, cdiv(cx(QM.ramp), cadd(cx(QM.ramp), zeq)));
+    return cx(v.re * vref, v.im * vref);
+  };
+  // good tune: C cancels the tank reactance at f0, and the detector phase centers the Q-curve's peak on f0. The cable's
+  // loss tilts the curve; the phase that zeroes the slope at f0 removes the tilt. Output is -Re, as in QMeterSim, with
+  // the phase branch chosen so the Q-curve arches down (positive polarization then dips).
+  const Cap = 1 / (w0 * zcoil(w0, 0).im), df = 1e-3;
+  const vp = vmix(Cap, f0 + df, 0), vm = vmix(Cap, f0 - df, 0);
+  let ph = Math.atan2(vp.re - vm.re, vp.im - vm.im);
+  const outPh = p => { const e = cx(Math.cos(p), Math.sin(p)); return (f, chi) => -cmul(vmix(Cap, f, chi), e).re; };
+  { const o = outPh(ph); if (o(f0 + df, 0) + o(f0 - df, 0) - 2 * o(f0, 0) > 0) ph += Math.PI; }
+  const re = outPh(ph);
+  const bg = new Float64Array(S.freq.length), tot = new Float64Array(S.freq.length);
+  S.freq.forEach((f, i) => { bg[i] = re(f, 0); tot[i] = re(f, chipp[i]); });
+  return { freq: S.freq, f0, bg, tot, Cap, height: re(f0, 0), len };
+}
+// V with an SI prefix
+function fV(v, d = 3) {
+  const a = Math.abs(v);
+  for (const [s, u] of [[1, "V"], [1e-3, "mV"], [1e-6, "µV"], [1e-9, "nV"]]) if (a >= s) return (v / s).toPrecision(d) + " " + u;
+  return (v / 1e-12).toPrecision(d) + " pV";
+}
+function niceTicks(lo, hi, n) {
+  const span = hi - lo || Math.abs(hi) || 1, step0 = span / n, p = Math.pow(10, Math.floor(Math.log10(step0)));
+  const step = [1, 2, 5, 10].map(m => m * p).find(s => s >= step0 * (1 - 1e-9));
+  const out = []; for (let t = Math.ceil(lo / step) * step; t <= hi + 1e-9 * step; t += step) out.push(Math.abs(t) < 1e-9 * step ? 0 : t);
+  return { ticks: out, step };
+}
+// line plot: series [{y, col, w, dash, scale}], x shared. Only series with scale !== false set the y range;
+// the others are clipped. Values in volts, shown with an SI prefix.
+function plotLines(cv, x, series, opt) {
+  const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  const ctx = cv.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
+  let mn = Infinity, mx = -Infinity;
+  for (const s of series) if (s.scale !== false) for (const v of s.y) { mn = Math.min(mn, v); mx = Math.max(mx, v); }
+  if (opt.zero) { mn = Math.min(mn, 0); mx = Math.max(mx, 0); }
+  const pad = 0.08 * (mx - mn || Math.abs(mx) || 1); mn -= pad; mx += pad;
+  const a = Math.max(Math.abs(mn), Math.abs(mx));
+  const [us, ul] = [[1, "V"], [1e-3, "mV"], [1e-6, "µV"], [1e-9, "nV"], [1e-12, "pV"]].find(([s]) => a >= s) || [1e-12, "pV"];
+  const yt = niceTicks(mn / us, mx / us, 4), dec = Math.max(0, -Math.floor(Math.log10(yt.step) + 1e-9));
+  const x0 = x[0], x1 = x[x.length - 1], padL = 58, padR = 16, padT = 12, padB = 38;
+  const X = f => padL + (f - x0) / (x1 - x0) * (W - padL - padR), Y = v => padT + (mx - v) / (mx - mn) * (H - padT - padB);
+  ctx.strokeStyle = css("--line"); ctx.lineWidth = 1; ctx.fillStyle = css("--muted"); ctx.font = `11px ${css("--f-mono")}`;
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  const xt = niceTicks(x0, x1, 4), xdec = Math.max(0, -Math.floor(Math.log10(xt.step) + 1e-9));
+  for (const t of xt.ticks) { ctx.beginPath(); ctx.moveTo(X(t), padT); ctx.lineTo(X(t), H - padB); ctx.stroke(); ctx.fillText(t.toFixed(xdec), X(t), H - padB + 6); }
+  ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  for (const t of yt.ticks) { ctx.beginPath(); ctx.moveTo(padL, Y(t * us)); ctx.lineTo(W - padR, Y(t * us)); ctx.stroke(); ctx.fillText(t.toFixed(dec), padL - 6, Y(t * us)); }
+  if (mn < 0 && mx > 0) { ctx.strokeStyle = css("--muted"); ctx.beginPath(); ctx.moveTo(padL, Y(0)); ctx.lineTo(W - padR, Y(0)); ctx.stroke(); }
+  ctx.fillStyle = css("--muted"); ctx.font = `11px ${css("--f-body")}`;
+  ctx.textAlign = "right"; ctx.textBaseline = "bottom"; ctx.fillText("frequency (MHz)", W - padR, H - 2);
+  ctx.textAlign = "left"; ctx.textBaseline = "top"; ctx.fillText(`${opt.label} (${ul})`, padL + 6, padT + 2);
+  ctx.save(); ctx.beginPath(); ctx.rect(padL, padT, W - padL - padR, H - padT - padB); ctx.clip();
+  for (const s of series) {
+    ctx.strokeStyle = s.col; ctx.lineWidth = s.w; ctx.setLineDash(s.dash || []); ctx.beginPath();
+    for (let i = 0; i < x.length; i++) { const px = X(x[i]), py = Y(s.y[i]); if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py); }
+    ctx.stroke();
+  }
+  ctx.restore(); ctx.setLineDash([]);
+}
+const qcCab = document.getElementById("qcCab"), qcRaw = document.getElementById("qcRaw"), qcSub = document.getElementById("qcSub");
+function buildCabOptions() {
+  const lb = lambda2(QSW[qc.nuc].f0);
+  qcCab.innerHTML = `<option value="0">Cold tank, short cable</option>` +
+    [1, 3, 5, 7, 9].map(m => `<option value="${m}">Warm tank, ${m} × λ/2 cable (${(m * lb).toFixed(2)} m)</option>`).join("");
+  qcCab.value = qc.cab;
+}
+function updateQC() {
+  const c = coil(), P = qc.pol === "te" ? polTE(qc.nuc) : QM.dnp[qc.nuc];
+  const r = qmeter(c, qc.nuc, qc.cab, P), n = r.freq.length;
+  let bmin = Infinity, bmax = -Infinity, smax = 0;
+  const sig = new Float64Array(n), shape = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    bmin = Math.min(bmin, r.bg[i]); bmax = Math.max(bmax, r.bg[i]);
+    sig[i] = r.tot[i] - r.bg[i]; shape[i] = r.bg[i] - r.height;
+    if (Math.abs(sig[i]) > Math.abs(smax)) smax = sig[i];
+  }
+  const depth = bmax - bmin;
+  [...document.querySelectorAll("#qcNuc button")].forEach(b => b.setAttribute("aria-pressed", b.dataset.v === qc.nuc));
+  [...document.querySelectorAll("#qcPol button")].forEach(b => b.setAttribute("aria-pressed", b.dataset.v === qc.pol));
+  const num = v => v >= 100 ? v.toFixed(0) : v >= 0.1 ? v.toPrecision(3) : v >= 1e-4 ? v.toPrecision(2) : v.toExponential(1);
+  const pct = x => num(100 * x) + "%";
+  document.getElementById("qcFp").textContent = DATA.freqs.p.toFixed(1);
+  document.getElementById("qcP").textContent = qc.pol === "te" ? `${(100 * P).toFixed(3)}% (${QM.Tte.toFixed(1)} K)` : P.toFixed(2);
+  document.getElementById("qcC").innerHTML = (r.Cap * 1e12).toFixed(r.Cap > 1e-11 ? 1 : 2) + " pF" + (c.rungs ? `<span class="group">lumped</span>` : "");
+  const hgt = Math.abs(r.height);
+  document.getElementById("qcH").textContent = fV(hgt);
+  document.getElementById("qcD").textContent = fV(depth);
+  document.getElementById("qcDr").textContent = pct(depth / hgt);
+  document.getElementById("qcS").textContent = fV(smax);
+  document.getElementById("qcSr").textContent = pct(Math.abs(smax) / hgt);
+  const ratio = Math.abs(smax) / depth;
+  document.getElementById("qcR").textContent = Number.isFinite(ratio) ? num(ratio) : "–";
+  plotLines(qcRaw, r.freq, [
+    { y: r.bg, col: css("--shell"), w: 1.6, dash: [6, 4] },
+    { y: r.tot, col: css("--ink"), w: 2 },
+  ], { label: "Q-meter output" });
+  plotLines(qcSub, r.freq, [
+    { y: shape, col: css("--shell"), w: 1.6, dash: [6, 4], scale: false },
+    { y: sig, col: css("--copper"), w: 2 },
+  ], { label: "after subtracting the Q-curve, scaled to the signal", zero: true });
+}
+for (const b of document.querySelectorAll("#qcNuc button")) b.addEventListener("click", () => { qc.nuc = b.dataset.v; buildCabOptions(); updateQC(); });
+for (const b of document.querySelectorAll("#qcPol button")) b.addEventListener("click", () => { qc.pol = b.dataset.v; updateQC(); });
+qcCab.addEventListener("change", () => { qc.cab = +qcCab.value; updateQC(); });
+buildCabOptions();
 
 /* ---------- update ---------- */
 function ceilingFrac() {
@@ -566,7 +724,7 @@ function updateAll() {
   });
   [...document.querySelectorAll("#tuneBody tr")].forEach(tr => tr.classList.toggle("sel", +tr.dataset.i === st.coil));
   updateSignals(r);
-  drawMap(); draw3d(); updateDeut(f);
+  drawMap(); draw3d(); updateDeut(f); updateQC();
 }
 
 
@@ -746,7 +904,8 @@ updateAll = function () {
 buildControls(); build3d(); updateAll();
 new ResizeObserver(() => { drawMap(); draw3d(); }).observe(document.querySelector(".stage"));
 new ResizeObserver(() => updateDeut(fraction(coil().map, st.rd / 2, st.ox, st.oy))).observe(dsCv);
-const rerender = () => { drawMap(); draw3d(); updateDeut(fraction(coil().map, st.rd / 2, st.ox, st.oy)); };
+new ResizeObserver(() => updateQC()).observe(qcRaw);
+const rerender = () => { drawMap(); draw3d(); updateDeut(fraction(coil().map, st.rd / 2, st.ox, st.oy)); updateQC(); };
 window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", rerender);
 new MutationObserver(rerender).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 

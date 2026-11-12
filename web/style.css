@@ -181,6 +181,7 @@ th.grp { text-align: center; }
 .dread .strong { font-weight: 600; color: var(--ink); }
 .dread hr { grid-column: 1 / -1; border: 0; border-top: 1px solid var(--line); margin: 2px 0; width: 100%; }
 .canvas-box.wide { aspect-ratio: 16 / 10; }
+.canvas-box.qc { aspect-ratio: 2 / 1; min-height: 190px; }
 .sw.dash { background: none; border-top: 2px dashed currentColor; height: 0; width: 18px; border-radius: 0; }
 .sw.dot { background: none; border-top: 2px dotted currentColor; height: 0; width: 18px; border-radius: 0; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

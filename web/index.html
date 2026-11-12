@@ -217,6 +217,58 @@
     </div>
   </section>
 
+  <section class="panel" aria-labelledby="qcHead">
+    <h2 id="qcHead">The signal on its Q-curve</h2>
+    <p>The NMR signal sits on top of the Q-curve, the Q-meter's response to the sweep with no polarization. The polarization comes
+      from the signal after that background is subtracted, so a deep or tilted Q-curve under a small signal makes the measurement
+      harder. Here the selected coil is put in the series Q-meter circuit of
+      <a href="https://github.com/jdmax/QMeterSim">QMeterSim</a> (after Court and Houlden): 1 V RF through R<sub>CC</sub> = 681 Ω,
+      a 50 Ω detector, and either a cold tank (C and R beside the coil) or a warm tank with an n·λ/2 cable between C and the
+      coil. The tune is good in each case: C cancels the tank reactance at the Larmor frequency, and the detector phase centers
+      the Q-curve's peak there, taking out the tilt the cable's loss adds. As in QMeterSim, the output is −Re: the Q-curve
+      arches down and positive polarization dips. Tank R and lead inductance come from the
+      settings above. The proton cable loss above counts as one λ/2 at <span id="qcFp"></span> MHz and scales as √f.</p>
+    <div class="dgrid">
+      <div class="dctl">
+        <div class="ctl">
+          <span class="eyebrow">Nucleus</span>
+          <div class="seg" id="qcNuc"><button type="button" data-v="p">Proton</button><button type="button" data-v="d">Deuteron</button></div>
+        </div>
+        <div class="ctl">
+          <label class="eyebrow" for="qcCab">Tank and coil cable</label>
+          <select id="qcCab"></select>
+        </div>
+        <div class="ctl">
+          <span class="eyebrow">Polarization</span>
+          <div class="seg" id="qcPol"><button type="button" data-v="te">Thermal equilibrium</button><button type="button" data-v="dnp">Enhanced</button></div>
+        </div>
+        <div class="dread" aria-live="polite">
+          <span class="k">Polarization P</span><span class="v" id="qcP">–</span><span class="e"></span>
+          <span class="k">Tuning C</span><span class="v" id="qcC">–</span><span class="e"></span>
+          <span class="k">Q-curve height</span><span class="v" id="qcH">–</span><span class="e"></span>
+          <hr>
+          <span class="hdr">Across the sweep</span><span class="hdr" style="text-align:right">size</span><span class="hdr" style="text-align:right">/ height</span>
+          <span class="k">Q-curve depth</span><span class="v" id="qcD">–</span><span class="e" id="qcDr">–</span>
+          <span class="k">Signal peak</span><span class="v" id="qcS">–</span><span class="e" id="qcSr">–</span>
+          <hr>
+          <span class="k strong">Signal / Q-curve depth</span><span class="v strong" id="qcR">–</span><span class="e"></span>
+        </div>
+      </div>
+      <div style="min-width:0; display:flex; flex-direction:column; gap:8px;">
+        <div class="canvas-box qc"><canvas id="qcRaw" aria-label="Simulated Q-meter output: the Q-curve alone and with the NMR signal"></canvas></div>
+        <div class="legend-line" style="margin-top:0">
+          <span style="color:var(--ink)"><i class="sw" style="background:var(--ink)"></i>Q-meter output with signal</span>
+          <span style="color:var(--shell)"><i class="sw dash"></i><span style="color:var(--muted)">Q-curve alone</span></span>
+        </div>
+        <div class="canvas-box qc"><canvas id="qcSub" aria-label="Signal after subtracting the Q-curve, with the Q-curve shape for scale"></canvas></div>
+        <div class="legend-line" style="margin-top:0">
+          <span style="color:var(--copper)"><i class="sw"></i><span style="color:var(--muted)">signal, Q-curve subtracted</span></span>
+          <span style="color:var(--shell)"><i class="sw dash"></i><span style="color:var(--muted)">Q-curve minus its center value (runs off scale when it dwarfs the signal)</span></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <section class="panel">
     <h2>Can it be tuned?</h2>
     <p>Inductance from a partial-inductance (Neumann) calculation of each wire model, and the series capacitance
@@ -265,6 +317,14 @@
         and, for a warm tank, the nλ/2 cable loss to first order. Birdcages count as one lumped inductor; tuned by their
         own capacitors and matched to the line, they would lose less. The proton numbers also assume the coil is short
         compared with λ (see "Wire run / λ"). C includes the leads; for birdcages it is per rung.</li>
+      <li>The Q-curve section ports the circuit of <a href="https://github.com/jdmax/QMeterSim">QMeterSim</a> with supply,
+        signal and reference lines of zero length, no stray capacitance, and the coil cable as a 50 Ω lossy line
+        (velocity factor 0.78). The cold tank has no cable inside the tank. The signal enters as absorption only,
+        Z<sub>L</sub> = jωL(1 + ηχ) with χ = −jχ″ (SI). χ″ is normalized by ∫χ″ df = (π/2) f<sub>0</sub>χ<sub>0</sub>, with
+        χ<sub>0</sub> = μ<sub>0</sub>nμP/B<sub>0</sub> for NH₃ or ND₃ at 0.867 g/cm³ (same molecular density for both) and a
+        packing fraction of 0.6. The proton line is the Hill and Hill shape used in QMeterSim (60 kHz); the deuteron line is the Dulya
+        shape above. Thermal equilibrium is at 1.0 K; enhanced is P = 0.90 for protons and 0.40 for deuterons. The model
+        includes the Q-meter's nonlinearity in χ″, so very large signals bend.</li>
     </ul>
   </section>
   <footer class="site"><a href="explorer.html">Single-file explorer</a> (preset coils only, no Python; works offline).
