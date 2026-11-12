@@ -289,7 +289,8 @@ th.grp { text-align: center; }
     <h2 id="dHead">Deuteron signal for this coil and raster</h2>
     <p>Set the polarization of the rastered core and of the unrastered shell. The coil sees their two Pake doublets
       weighted by its raster fraction. The area method returns the weighted mean; a single-r peak fit
-      (the DeuteronPeakFit lineshape) does not, because peak heights are nonlinear in P.</p>
+      (the DeuteronPeakFit lineshape) does not, because peak heights are nonlinear in P. The whole-cell volume average
+      weights core and shell by their share of the cell volume; a perfectly uniform coil would report it.</p>
     <div class="dgrid">
       <div class="dctl">
         <div class="ctl">
@@ -304,6 +305,7 @@ th.grp { text-align: center; }
           <span class="hdr">Polarization</span><span class="hdr" style="text-align:right">value</span><span class="hdr" style="text-align:right">− core</span>
           <span class="k">Coil weight on core (f)</span><span class="v" id="dF">–</span><span class="e"></span>
           <span class="k">Material in the beam</span><span class="v" id="dTrue">–</span><span class="e">0</span>
+          <span class="k">Whole cell, volume average</span><span class="v" id="dVol">–</span><span class="e" id="dVolE">–</span>
           <hr>
           <span class="k strong">Area method</span><span class="v strong" id="dArea">–</span><span class="e" id="dAreaE">–</span>
           <span class="k strong">Peak fit</span><span class="v strong" id="dFit">–</span><span class="e" id="dFitE">–</span>
@@ -875,6 +877,9 @@ function updateDeut(f) {
   document.getElementById("pOutVal").textContent = dState.pout.toFixed(2);
   document.getElementById("dF").textContent = fmt(f, 3);
   document.getElementById("dTrue").textContent = dState.pin.toFixed(3);
+  const a = ceilingFrac(), pv = a * dState.pin + (1 - a) * dState.pout;   // raster's share of the cell volume
+  document.getElementById("dVol").textContent = pv.toFixed(3);
+  document.getElementById("dVolE").textContent = sgn(pv - dState.pin);
   document.getElementById("dArea").textContent = fmt(r.area, 3);
   document.getElementById("dAreaE").textContent = sgn(r.area - dState.pin);
   document.getElementById("dFit").textContent = fmt(r.fit, 3);

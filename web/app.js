@@ -456,6 +456,9 @@ function updateDeut(f) {
   document.getElementById("pOutVal").textContent = dState.pout.toFixed(2);
   document.getElementById("dF").textContent = fmt(f, 3);
   document.getElementById("dTrue").textContent = dState.pin.toFixed(3);
+  const a = ceilingFrac(), pv = a * dState.pin + (1 - a) * dState.pout;   // raster's share of the cell volume
+  document.getElementById("dVol").textContent = pv.toFixed(3);
+  document.getElementById("dVolE").textContent = sgn(pv - dState.pin);
   document.getElementById("dArea").textContent = fmt(r.area, 3);
   document.getElementById("dAreaE").textContent = sgn(r.area - dState.pin);
   document.getElementById("dFit").textContent = fmt(r.fit, 3);
